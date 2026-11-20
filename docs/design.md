@@ -1,6 +1,6 @@
-# Desk Lock: NFC focus blocker for iPhone (design v0.1)
+# Tawfeeq: NFC focus blocker for iPhone (design v0.2)
 
-"Desk Lock" is a working name, so rename it freely. The app works like Brick, but uses NFC stickers you already own and adds the features below. The evidence behind each decision is in [research.md](research.md).
+The app works like Brick, but uses NFC stickers you already own and adds the features below. Bundle ID `uk.tawfeeq.app`, App Group `group.uk.tawfeeq`, tag links on `tawfeeq.uk`. The evidence behind each decision is in [research.md](research.md).
 
 ## 1. What you asked for (interview summary)
 
@@ -37,7 +37,7 @@
 ### 3.1 Building blocks
 
 ```
-DeskLock (app, SwiftUI)
+Tawfeeq (app, SwiftUI)
 ├── DeviceActivityMonitor ext  → applies/removes shields on schedule & pass expiry; records screen-time thresholds
 ├── ShieldConfiguration ext    → custom "You're in focus" screen
 ├── ShieldAction ext           → "Take 5-min pass" button right on the shield
@@ -45,7 +45,7 @@ DeskLock (app, SwiftUI)
 ├── Widget ext                 → Live Activity / Lock Screen timer + required by AlarmKit countdowns
 └── App Group                  → shared state (session, passes, event log) between all of the above
 
-DeskLock Partner (companion app, NO Screen Time entitlement)
+Tawfeeq Partner (companion app, NO Screen Time entitlement)
 └── reads your shared CloudKit zone, shows dashboard, gets alerts
 ```
 
@@ -58,7 +58,7 @@ DeskLock Partner (companion app, NO Screen Time entitlement)
 - **Roles**:
   - `desk`: starts and stops sessions, and confirms the morning check-in.
   - `spare`: an optional backup kept in a drawer, which can also end a session. Use a spare sticker for it.
-- **Fast trigger (optional)**: a Shortcuts personal automation, "When NFC tag *Desk* is scanned → Run *Desk Lock Toggle*":
+- **Fast trigger (optional)**: a Shortcuts personal automation, "When NFC tag *Desk* is scanned → Run *Tawfeeq Toggle*":
   - If no session is running, it **starts one in the background**, with no app opening.
   - If a session is running, it **opens the app on the scan screen**, and an in-app scan of the real tag ends the session. A shortcut is never trusted as proof for stopping, because you could run it by hand.
 - Security note: a UID can be cloned. The tag adds friction for honesty; it isn't real security, and that's fine for this purpose.
@@ -139,7 +139,7 @@ You set the times in **Settings → Routine**:
   - You invite your partner with an iMessage link. They need an iCloud account.
   - There's no server to run and no cost.
   - Alerts come from CloudKit subscriptions plus a local notification. They can arrive a few minutes late, which is acceptable for accountability.
-- **Getting it onto their phone**: a separate **"Desk Lock Partner"** companion app with no Screen Time entitlement.
+- **Getting it onto their phone**: a separate **"Tawfeeq Partner"** companion app with no Screen Time entitlement.
   - It goes out through **TestFlight with no Apple approval needed**. Builds last 90 days; push a new one each quarter.
   - Two-way accountability (they block too) needs the full app on their phone, by one of:
     - a development build installed from your Mac (device registered, valid for about 1 year);
@@ -158,9 +158,13 @@ You set the times in **Settings → Routine**:
 
 I write the Swift code in this repo. You build and run it from Xcode on your Mac, because Screen Time and NFC only work on a real iPhone, not the simulator.
 
-## 5. Open items to confirm
+## 5. Decisions and open items
 
-1. Is your iPhone on **iOS 26 or later**? AlarmKit needs it. Otherwise alarms fall back to plain notifications, which can't break through Silent mode.
-2. Does your partner have an iPhone with iCloud? And is accountability **one-way** (they watch you) or **two-way**?
-3. Do you have a domain? It's optional: with one, a tap can open the app via a notification even without a Shortcuts automation.
-4. Bundle ID prefix / app name, e.g. `com.yourname.desklock`.
+- ✅ iPhone on iOS 26+, so AlarmKit alarms are in.
+- ✅ Name **Tawfeeq**. You own **tawfeeq.uk**, so tags carry `https://tawfeeq.uk/t/<secret>` links. Setup is in [setup.md](setup.md).
+- ⏳ **Partner: not decided yet.** It stays optional, and the default is one-way via the companion app. We decide before phase 5. Until then, don't request the Family Controls Distribution entitlement.
+- ⏳ Where tawfeeq.uk is hosted, so we can serve the `apple-app-site-association` file.
+
+## 6. Status
+
+- **Phase 1** (core) is written but **not yet compiled or tested**: this was written in a Linux container with no Xcode. See [setup.md](setup.md) for how to build and the test checklist.

@@ -1,0 +1,12 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["TEAMID.uk.tawfeeq.app"],
+        "components": [
+          { "/": "/t/*", "comment": "Tawfeeq NFC tag links" }
+        ]
+      }
+    ]
+  }
+}
