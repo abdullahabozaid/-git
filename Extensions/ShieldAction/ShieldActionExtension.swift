@@ -30,7 +30,8 @@ final class ShieldActionExtension: ShieldActionDelegate {
             } catch {
                 return .close
             }
-        @unknown default:
+        default:
+            // iOS 26 submenu items etc. aren't used by Tawfeeq.
             return .close
         }
     }
