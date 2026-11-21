@@ -12,6 +12,8 @@ struct LogEvent: Codable, Identifiable {
         case shieldRepaired
         case authorizationLost
         case authorizationGranted
+        case passStarted
+        case passEnded
     }
 
     var id = UUID()

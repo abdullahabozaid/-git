@@ -53,6 +53,8 @@ targets:
           - applinks:tawfeeq.uk
     dependencies:
       - target: ShieldConfiguration
+      - target: ShieldAction
+      - target: DeviceActivityMonitor
 
   ShieldConfiguration:
     type: app-extension
@@ -72,6 +74,52 @@ targets:
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShieldConfigurationExtension
     entitlements:
       path: Extensions/ShieldConfiguration/ShieldConfiguration.entitlements
+      properties:
+        com.apple.developer.family-controls: true
+        com.apple.security.application-groups:
+          - group.uk.tawfeeq
+
+  ShieldAction:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Extensions/ShieldAction
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: uk.tawfeeq.app.ShieldAction
+    info:
+      path: Extensions/ShieldAction/Info.plist
+      properties:
+        CFBundleDisplayName: Tawfeeq Shield Action
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.ManagedSettings.shield-action-service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShieldActionExtension
+    entitlements:
+      path: Extensions/ShieldAction/ShieldAction.entitlements
+      properties:
+        com.apple.developer.family-controls: true
+        com.apple.security.application-groups:
+          - group.uk.tawfeeq
+
+  DeviceActivityMonitor:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Extensions/DeviceActivityMonitor
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: uk.tawfeeq.app.DeviceActivityMonitor
+    info:
+      path: Extensions/DeviceActivityMonitor/Info.plist
+      properties:
+        CFBundleDisplayName: Tawfeeq Monitor
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.deviceactivity.monitor-extension
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).DeviceActivityMonitorExtension
+    entitlements:
+      path: Extensions/DeviceActivityMonitor/DeviceActivityMonitor.entitlements
       properties:
         com.apple.developer.family-controls: true
         com.apple.security.application-groups:

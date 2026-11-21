@@ -86,6 +86,7 @@ struct BlockConfig: Codable, Equatable {
 enum SessionSource: String, Codable {
     case tagScan
     case tagLink
+    case shortcut
 }
 
 struct FocusSession: Codable, Equatable {

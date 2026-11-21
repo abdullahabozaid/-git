@@ -27,6 +27,11 @@ final class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         }
         subtitle += "\nTap your desk tag to end the session."
 
+        let passes = PassManager.summary().passes
+        if passes > 0 {
+            subtitle += "\n\(passes) pass\(passes == 1 ? "" : "es") used today."
+        }
+
         return ShieldConfiguration(
             backgroundBlurStyle: .systemUltraThinMaterialDark,
             backgroundColor: UIColor(red: 0.05, green: 0.12, blue: 0.10, alpha: 1),
@@ -34,7 +39,9 @@ final class ShieldConfigurationExtension: ShieldConfigurationDataSource {
             title: ShieldConfiguration.Label(text: "Tawfeeq", color: .white),
             subtitle: ShieldConfiguration.Label(text: subtitle, color: UIColor.white.withAlphaComponent(0.8)),
             primaryButtonLabel: ShieldConfiguration.Label(text: "Close", color: .black),
-            primaryButtonBackgroundColor: .white
+            primaryButtonBackgroundColor: .white,
+            // Handled by the ShieldAction extension.
+            secondaryButtonLabel: ShieldConfiguration.Label(text: "Take a 5-minute pass", color: .white)
         )
     }
 }

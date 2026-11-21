@@ -1,6 +1,16 @@
-# Setting up and running Tawfeeq (phase 1)
+# Setting up and running Tawfeeq (phases 1–2)
 
-Phase 1 gives you: Screen Time permission → pick apps to block (+ allowlist) → register your desk tag → **tap to start blocking, tap again to stop**, with a custom block screen.
+What's included:
+- **Phase 1**:
+  - Screen Time permission
+  - pick apps to block, plus an allowlist
+  - register your desk tag
+  - **tap to start blocking, tap again to stop**
+  - a custom block screen
+- **Phase 2**:
+  - **5-minute passes**, from the block screen or the app; apps re-block automatically
+  - a pass counter with back-to-back warnings
+  - a Shortcuts NFC automation, so tapping the desk sticker starts a session
 
 ## You need
 
@@ -56,6 +66,26 @@ Run `xcodegen generate` again whenever `project.yml` changes or files are added.
 - [ ] Force-quit Tawfeeq during a session: apps stay blocked.
 - [ ] Reboot the phone during a session: apps stay blocked (there may be a short gap after boot), and opening Tawfeeq repairs it.
 - [ ] Register a **spare** tag: it can also end a session.
+
+### Phase 2 test checklist
+
+- [ ] During a session, open a blocked app and tap **Take a 5-minute pass** on the block screen. The app opens.
+- [ ] About 5 minutes later the app is blocked again, *without* opening Tawfeeq.
+- [ ] Take a pass from the Focus tab. The circle turns orange with a countdown. **Re-block now** blocks again immediately.
+- [ ] Take two passes within 2 minutes of each other. The Focus tab shows "1 back-to-back" in orange.
+- [ ] End the session with the desk tag while a pass is running. Everything unblocks and stays unblocked.
+- [ ] Take a pass and leave Tawfeeq closed for 10+ minutes. Apps are blocked again. If they aren't, opening Tawfeeq fixes it; please tell me, because that means the background re-block didn't fire.
+
+### Tap the sticker to start (Shortcuts automation)
+
+1. Open **Shortcuts** → **Automation** → **+** → **NFC**.
+2. Tap **Scan**, hold the phone on your desk sticker, and name it "Desk".
+3. Choose **Run Immediately**.
+4. Add the action **Desk Tag Tapped** (from Tawfeeq).
+
+Now a single tap on the desk sticker does one of two things:
+- **Not focusing**: Tawfeeq opens and the session starts.
+- **Focusing**: Tawfeeq opens on the scan sheet. Tap again to end. Ending always needs the real scan, because a shortcut can be run by hand.
 
 ## 4. Optional: tap the sticker without opening the app first (tawfeeq.uk)
 

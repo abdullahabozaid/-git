@@ -9,10 +9,16 @@ struct AppAlert: Identifiable {
 
 @MainActor
 final class AppModel: ObservableObject {
+    /// Single instance, shared with App Intents (Shortcuts NFC automation).
+    static let shared = AppModel()
+
     @Published private(set) var isAuthorized = false
     @Published private(set) var config: BlockConfig
     @Published private(set) var tags: [EnrolledTag]
     @Published private(set) var session: FocusSession?
+    /// Set while a 5-minute pass is running (may be started from the block screen, i.e. another process).
+    @Published private(set) var passExpiresAt: Date?
+    @Published private(set) var passSummary = PassManager.DaySummary()
     @Published private(set) var isScanning = false
     @Published var alert: AppAlert?
 
@@ -24,10 +30,16 @@ final class AppModel: ObservableObject {
         config = store.blockConfig
         tags = store.tags
         session = store.activeSession
+        passExpiresAt = store.passExpiresAt
         isAuthorized = AuthorizationCenter.shared.authorizationStatus == .approved
     }
 
     var isFocusing: Bool { session != nil }
+
+    func isOnPass(now: Date = Date()) -> Bool {
+        guard let passExpiresAt else { return false }
+        return passExpiresAt > now
+    }
 
     // MARK: - Authorization
 
@@ -57,16 +69,58 @@ final class AppModel: ObservableObject {
         reconcile()
     }
 
-    /// Self-heal: make the real shield state match what we think it should be.
-    /// Covers stuck shields and (in later phases) missed extension callbacks.
-    func reconcile() {
+    /// Self-heal: make the real shield state match what it should be.
+    /// Covers stuck shields and missed extension callbacks (e.g. a pass that never re-blocked).
+    /// Also called every few seconds while the Focus screen is visible.
+    func reconcile(now: Date = Date()) {
+        // State can change in other processes (pass button on the block screen, monitor extension).
+        session = store.activeSession
+        if let expiresAt = store.passExpiresAt, expiresAt <= now {
+            PassManager.end(reason: "expiredRepairedByApp", now: now)
+        }
+        passExpiresAt = store.passExpiresAt
+        passSummary = PassManager.summary(for: now)
+
         guard isAuthorized else { return }
-        if isFocusing, !blocker.isShielding {
+        let shouldShield = isFocusing && !isOnPass(now: now)
+        if shouldShield, !blocker.isShielding {
             blocker.apply(config)
             EventLog.append(.shieldRepaired, info: ["reason": "missingDuringSession"])
-        } else if !isFocusing, blocker.isShielding {
-            blocker.clear()
-            EventLog.append(.shieldRepaired, info: ["reason": "staleAfterSession"])
+        } else if !shouldShield, blocker.isShielding {
+            if isFocusing { blocker.liftShields() } else { blocker.clear() }
+            EventLog.append(.shieldRepaired, info: ["reason": isFocusing ? "shieldedDuringPass" : "staleAfterSession"])
+        }
+    }
+
+    // MARK: - Temporary pass (emergency override)
+
+    func takePass() {
+        do {
+            try PassManager.start(source: "app")
+        } catch {
+            alert = AppAlert(message: error.localizedDescription)
+        }
+        reconcile()
+    }
+
+    func endPassEarly() {
+        PassManager.end(reason: "endedEarly")
+        reconcile()
+    }
+
+    // MARK: - Shortcuts NFC automation
+
+    /// Run by the "Desk Tag Tapped" App Intent. Starting is allowed straight from the shortcut;
+    /// ending always needs a real in-app scan, because a shortcut can be run by hand.
+    func handleDeskTagShortcut() {
+        if isFocusing {
+            Task {
+                try? await Task.sleep(for: .milliseconds(600))
+                await scanToToggle()
+            }
+        } else {
+            let tag = tags.first { $0.role == .desk } ?? tags.first
+            startSession(with: tag, source: .shortcut)
         }
     }
 
@@ -115,25 +169,27 @@ final class AppModel: ObservableObject {
         return nil
     }
 
-    private func startSession(with tag: EnrolledTag, source: SessionSource) {
+    private func startSession(with tag: EnrolledTag?, source: SessionSource) {
         if let problem = startProblem() {
             alert = AppAlert(message: problem)
             return
         }
         blocker.apply(config)
-        let newSession = FocusSession(id: UUID(), startedAt: Date(), source: source, startTagID: tag.id)
+        let newSession = FocusSession(id: UUID(), startedAt: Date(), source: source, startTagID: tag?.id)
         session = newSession
         store.activeSession = newSession
         EventLog.append(.sessionStarted, info: [
             "sessionID": newSession.id.uuidString,
             "source": source.rawValue,
-            "tag": tag.name,
-            "tagRole": tag.role.rawValue,
+            "tag": tag?.name ?? "",
+            "tagRole": tag?.role.rawValue ?? "",
         ])
     }
 
     private func endSession(with tag: EnrolledTag) {
         guard let current = session else { return }
+        PassManager.cancelForSessionEnd()
+        passExpiresAt = nil
         blocker.clear()
         if blocker.isShielding { blocker.clear() } // one retry for the stuck-shield bug
         session = nil

@@ -31,6 +31,13 @@ struct Blocker {
         store.application.denyAppRemoval = config.preventAppRemoval ? true : nil
     }
 
+    /// Unblocks apps but keeps "prevent app removal" on. Used during a temporary pass.
+    func liftShields() {
+        store.shield.applications = nil
+        store.shield.applicationCategories = nil
+        store.shield.webDomains = nil
+    }
+
     func clear() {
         // Nil each setting explicitly before clearAllSettings(); some iOS versions
         // have left shields stuck when only clearAllSettings() was called.

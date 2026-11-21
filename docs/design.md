@@ -167,4 +167,4 @@ I write the Swift code in this repo. You build and run it from Xcode on your Mac
 
 ## 6. Status
 
-- **Phase 1** (core) is written but **not yet compiled or tested**: this was written in a Linux container with no Xcode. See [setup.md](setup.md) for how to build and the test checklist.
+- **Phases 1–2** (core, passes, Shortcuts trigger) are written but **not yet compiled or tested**: this was written in a Linux container with no Xcode. See [setup.md](setup.md) for how to build and the test checklist.

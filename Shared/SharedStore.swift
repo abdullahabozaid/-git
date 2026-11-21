@@ -9,6 +9,8 @@ final class SharedStore {
         static let tags = "tags"
         static let activeSession = "activeSession"
         static let lastKnownAuthorized = "lastKnownAuthorized"
+        static let passExpiresAt = "passExpiresAt"
+        static let lastPassEndedAt = "lastPassEndedAt"
     }
 
     private let defaults: UserDefaults
@@ -37,6 +39,17 @@ final class SharedStore {
     var lastKnownAuthorized: Bool {
         get { defaults.bool(forKey: Key.lastKnownAuthorized) }
         set { defaults.set(newValue, forKey: Key.lastKnownAuthorized) }
+    }
+
+    /// Set while a temporary pass is running.
+    var passExpiresAt: Date? {
+        get { defaults.object(forKey: Key.passExpiresAt) as? Date }
+        set { defaults.set(newValue, forKey: Key.passExpiresAt) }
+    }
+
+    var lastPassEndedAt: Date? {
+        get { defaults.object(forKey: Key.lastPassEndedAt) as? Date }
+        set { defaults.set(newValue, forKey: Key.lastPassEndedAt) }
     }
 
     private func load<T: Decodable>(_ key: String) -> T? {
