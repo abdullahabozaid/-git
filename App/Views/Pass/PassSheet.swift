@@ -11,6 +11,7 @@ struct PassSheet: View {
     @State private var intention: PassIntention?
     @State private var breathingEndsAt: Date?
     @State private var breatheIn = false
+    @State private var tookPass = false
 
     var body: some View {
         VStack(spacing: 20) {
@@ -21,7 +22,13 @@ struct PassSheet: View {
             }
         }
         .padding(24)
-        .onAppear { recent = PassManager.recent() }
+        .onAppear {
+            recent = PassManager.recent()
+            model.logPassSheet(opened: true)
+        }
+        .onDisappear {
+            if !tookPass { model.logPassSheet(opened: false) } // "changed my mind" metric
+        }
     }
 
     // MARK: Step 1: count + intention
@@ -44,7 +51,9 @@ struct PassSheet: View {
                     ForEach(PassIntention.allCases) { option in
                         let selected = intention == option
                         Button {
+                            // Choosing a reason starts the breathing wait: one tap fewer.
                             intention = option
+                            breathingEndsAt = Date().addingTimeInterval(TimeInterval(PassManager.waitSeconds(passesToday: recent.today)))
                         } label: {
                             Label(option.label, systemImage: option.symbol)
                                 .font(.subheadline.weight(.medium))
@@ -60,19 +69,9 @@ struct PassSheet: View {
                 }
             }
 
-            let wait = PassManager.waitSeconds(passesToday: recent.today)
-            Button {
-                breathingEndsAt = Date().addingTimeInterval(TimeInterval(wait))
-            } label: {
-                Text("Breathe for \(wait) seconds first")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(Theme.pass)
-            .controlSize(.large)
-            .disabled(intention == nil)
+            Text("Then breathe for \(PassManager.waitSeconds(passesToday: recent.today)) seconds before it unlocks.")
+                .font(.footnote)
+                .foregroundStyle(Theme.secondaryText)
 
             Button("Never mind, keep focusing") { dismiss() }
                 .font(.subheadline)
@@ -87,7 +86,7 @@ struct PassSheet: View {
             Label("That would be your \(Formatting.ordinal(recent.inLast30Minutes + 1)) pass in 30 minutes. Still worth it?",
                   systemImage: "exclamationmark.triangle.fill")
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(Theme.pass)
+                .foregroundStyle(Theme.passText)
                 .multilineTextAlignment(.center)
         } else if let last = recent.lastStartedAt, Calendar.current.isDateInToday(last) {
             Text("Pass #\(next) today · last one \(Formatting.duration(Date().timeIntervalSince(last))) ago")
@@ -125,6 +124,7 @@ struct PassSheet: View {
                     .font(.title3.weight(.semibold))
 
                 Button {
+                    tookPass = true
                     model.takePass(intention: intention)
                     dismiss()
                 } label: {

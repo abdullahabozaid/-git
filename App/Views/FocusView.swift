@@ -1,9 +1,11 @@
+import FamilyControls
 import SwiftUI
 
 /// Home. Changes completely by state: idle, focusing, pass, night lock, morning check-in.
 struct FocusView: View {
     @EnvironmentObject private var model: AppModel
     @State private var showPassSheet = false
+    @State private var showBlockPicker = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Re-checks state every few seconds while visible: picks up passes started from the
@@ -33,6 +35,14 @@ struct FocusView: View {
             .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(duration: 0.6), value: state.kind)
         }
         .onReceive(ticker) { _ in model.reconcile() }
+        .familyActivityPicker(isPresented: $showBlockPicker, selection: Binding(
+            get: { model.config.blocked },
+            set: { selection in
+                var config = model.config
+                config.blocked = selection
+                model.updateConfig(config)
+            }
+        ))
         .sheet(isPresented: $showPassSheet) {
             PassSheet()
                 .presentationDetents([.medium, .large])
@@ -74,10 +84,19 @@ struct FocusView: View {
         VStack(spacing: 12) {
             switch state {
             case .idle:
-                ScanButton(title: model.tags.isEmpty ? "Add your desk tag in Settings" : "Scan desk tag to begin",
-                           tint: Theme.focus)
-                    .disabled(model.tags.isEmpty)
-                HoldToStartButton()
+                if !model.config.hasAnythingToBlock {
+                    // Prevent the error instead of reporting it at start time.
+                    SetupButton(title: "Choose apps to block", symbol: "apps.iphone") { showBlockPicker = true }
+                } else if model.tags.isEmpty {
+                    SetupButton(title: "Add your desk tag", symbol: "wave.3.right") {
+                        Task { await model.enrollTag(name: "Desk", role: .desk) }
+                    }
+                } else {
+                    ScanButton(title: "Scan desk tag to begin", tint: Theme.focus)
+                }
+                if model.config.hasAnythingToBlock {
+                    HoldToStartButton()
+                }
             case .focusing:
                 ScanButton(title: "Scan desk tag to finish", tint: Theme.focus)
                 Button("Take a 5-minute pass") { showPassSheet = true }
@@ -181,6 +200,9 @@ private struct StateDial: View {
     let now: Date
     let wakeTime: TimeOfDay
 
+    @ScaledMetric(relativeTo: .largeTitle) private var timerSize: CGFloat = 56
+    @ScaledMetric(relativeTo: .largeTitle) private var dialSize: CGFloat = 260
+
     var body: some View {
         ZStack {
             Circle()
@@ -205,7 +227,7 @@ private struct StateDial: View {
                     .symbolEffect(.pulse, isActive: state.kind == .idle || state.kind == .morning)
                 if let big = bigText {
                     Text(big)
-                        .font(.system(size: 56, weight: .semibold, design: .rounded))
+                        .font(.system(size: min(timerSize, 84), weight: .semibold, design: .rounded))
                         .monospacedDigit()
                         .contentTransition(.numericText(countsDown: state.kind == .pass))
                         .foregroundStyle(state.isDark ? Color.white : Theme.text)
@@ -220,8 +242,25 @@ private struct StateDial: View {
             }
             .padding(24)
         }
-        .frame(width: 260, height: 260)
+        .frame(width: min(dialSize, 320), height: min(dialSize, 320))
         .animation(.default, value: bigText)
+        // One calm VoiceOver element instead of fragments that change every second.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+        .accessibilityAddTraits(.updatesFrequently)
+    }
+
+    private var accessibilityText: String {
+        func spoken(_ seconds: TimeInterval) -> String {
+            Duration.seconds(max(60, seconds)).formatted(.units(allowed: [.hours, .minutes], width: .wide))
+        }
+        switch state {
+        case .idle: return "Ready. Tap your desk tag to begin."
+        case .focusing(let start): return "Focusing for \(spoken(now.timeIntervalSince(start)))."
+        case .night(let start): return "Night lock, \(spoken(now.timeIntervalSince(start))) so far."
+        case .pass(let end): return "On a pass. \(spoken(end.timeIntervalSince(now))) left."
+        case .morning: return "Good morning. Tap your desk tag to check in."
+        }
     }
 
     private var symbol: String {
@@ -257,20 +296,31 @@ private struct StateDial: View {
 /// Today at a glance: focus, sessions, passes, streak.
 private struct TodayStrip: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.dynamicTypeSize) private var typeSize
     let now: Date
 
     var body: some View {
         let today = model.todayStats(now: now)
-        HStack(spacing: 10) {
-            chip(value: Formatting.duration(today.focusSeconds), label: "today", symbol: "target", tint: Theme.focus)
-            chip(value: "\(today.sessions)", label: today.sessions == 1 ? "session" : "sessions", symbol: "circle.circle", tint: Theme.focus)
+        let chips = Group {
+            chip(value: Formatting.duration(today.focusSeconds), label: "today", symbol: "target", tint: Theme.focus,
+                 spoken: "\(Formatting.duration(today.focusSeconds)) focused today")
+            chip(value: "\(today.sessions)", label: today.sessions == 1 ? "session" : "sessions", symbol: "circle.circle", tint: Theme.focus,
+                 spoken: "\(today.sessions) sessions today")
             chip(value: "\(today.passes)", label: today.passes == 1 ? "pass" : "passes", symbol: "hourglass",
-                 tint: today.backToBackPasses > 0 ? Theme.pass : Theme.secondaryText)
-            chip(value: "\(model.currentStreak)", label: "streak", symbol: "flame.fill", tint: Theme.gold)
+                 tint: today.backToBackPasses > 0 ? Theme.pass : Theme.secondaryText,
+                 spoken: "\(today.passes) passes today")
+            chip(value: "\(model.currentStreak)", label: "streak", symbol: "flame.fill", tint: Theme.gold,
+                 spoken: "\(model.currentStreak) day streak")
+        }
+        if typeSize.isAccessibilitySize {
+            // Large text: 2×2 so nothing truncates.
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) { chips }
+        } else {
+            HStack(spacing: 10) { chips }
         }
     }
 
-    private func chip(value: String, label: String, symbol: String, tint: Color) -> some View {
+    private func chip(value: String, label: String, symbol: String, tint: Color, spoken: String) -> some View {
         VStack(spacing: 4) {
             Image(systemName: symbol)
                 .font(.caption.weight(.semibold))
@@ -286,6 +336,27 @@ private struct TodayStrip: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10)
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.surface.opacity(0.85)))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spoken)
+    }
+}
+
+/// Inline setup call-to-action when something is missing (instead of an error later).
+private struct SetupButton: View {
+    let title: String
+    let symbol: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(Theme.focus)
+        .controlSize(.large)
     }
 }
 
@@ -354,7 +425,9 @@ private struct HoldToStartButton: View {
             }
         }
         .sensoryFeedback(.increase, trigger: tick) { _, _ in model.hapticsEnabled }
-        .accessibilityLabel("Hold for 3 seconds to start a focus session without scanning the tag")
+        .accessibilityLabel("Start without tag")
+        .accessibilityHint("Hold for 3 seconds. Ending the session still needs your desk tag.")
+        .accessibilityAction(named: "Start without tag") { model.startWithoutTag() }
     }
 }
 
@@ -379,8 +452,15 @@ struct SessionSummarySheet: View {
                         .ignoresSafeArea()
                 }
             }
+            .contentShape(Rectangle())
+            .onTapGesture { dismiss() }
             .onAppear {
                 withAnimation(.easeOut(duration: 1.2)) { sunrise = true }
+            }
+            .task {
+                // Saves a tap every session: closes on its own.
+                do { try await Task.sleep(for: .seconds(4)) } catch { return }
+                dismiss()
             }
     }
 
@@ -397,10 +477,10 @@ struct SessionSummarySheet: View {
                 .font(.body)
                 .foregroundStyle(Theme.secondaryText)
                 .multilineTextAlignment(.center)
-            Button("Done") { dismiss() }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.focus)
-                .controlSize(.large)
+            Text("Tap anywhere to close")
+                .font(.caption)
+                .foregroundStyle(Theme.secondaryText)
+                .accessibilityHidden(true)
         }
         .padding(28)
     }

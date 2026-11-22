@@ -10,6 +10,8 @@ struct OnboardingFlow: View {
     @State private var allowed = FamilyActivitySelection()
     @State private var selection = FamilyActivitySelection()
     @State private var routine = Routine()
+    @State private var permissionAttempted = false
+    @State private var showShortcutGuide = false
 
     enum Step: Int, CaseIterable {
         case welcome, howItWorks, permission, apps, tag, mornings, done
@@ -17,11 +19,25 @@ struct OnboardingFlow: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ProgressView(value: Double(step.rawValue), total: Double(Step.allCases.count - 1))
-                .tint(.accentColor)
-                .padding(.horizontal, 24)
-                .padding(.top, 8)
-                .opacity(step == .welcome ? 0 : 1)
+            HStack(spacing: 12) {
+                Button {
+                    goBack()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.headline)
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("Back")
+                .opacity(step == .welcome || step == .done ? 0 : 1)
+                .disabled(step == .welcome || step == .done)
+
+                ProgressView(value: Double(step.rawValue), total: Double(Step.allCases.count - 1))
+                    .tint(Theme.focus)
+                    .accessibilityLabel("Step \(step.rawValue + 1) of \(Step.allCases.count)")
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 4)
+            .opacity(step == .welcome ? 0 : 1)
 
             Group {
                 switch step {
@@ -54,12 +70,19 @@ struct OnboardingFlow: View {
         .onChange(of: model.isAuthorized) { _, authorized in
             if authorized, step == .permission { advance() }
         }
+        .sheet(isPresented: $showShortcutGuide) { ShortcutGuideSheet() }
         .onAppear {
+            if step == .welcome { EventLog.append(.onboardingStarted) }
             selection = model.config.blocked
             allowed = model.config.allowed
             routine = model.routine
         }
         .sensoryFeedback(.selection, trigger: step)
+    }
+
+    private func goBack() {
+        guard let previous = Step(rawValue: step.rawValue - 1) else { return }
+        step = previous
     }
 
     private func advance() {
@@ -101,8 +124,21 @@ struct OnboardingFlow: View {
             if model.isAuthorized {
                 PrimaryButton("Continue") { advance() }
             } else {
-                PrimaryButton("Allow Screen Time access") {
-                    Task { await model.requestAuthorization() }
+                if permissionAttempted {
+                    Text("Screen Time wasn't allowed. You can try again, or turn it on in Settings → Screen Time → Apps with Screen Time Access.")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.secondaryText)
+                        .multilineTextAlignment(.center)
+                    SecondaryButton("Open Settings") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                    }
+                }
+                PrimaryButton(permissionAttempted ? "Try again" : "Allow Screen Time access") {
+                    Task {
+                        await model.requestAuthorization()
+                        model.alert = nil // the page explains it inline
+                        permissionAttempted = true
+                    }
                 }
             }
         }
@@ -149,6 +185,9 @@ struct OnboardingFlow: View {
                     Task { await model.enrollTag(name: "Desk", role: .desk) }
                 }
                 .disabled(model.isScanning)
+                Button("Sticker not here? Do this later") { advance() }
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.secondaryText)
             }
         }
     }
@@ -193,8 +232,9 @@ struct OnboardingFlow: View {
         OnboardingPage(
             symbol: "checkmark.circle.fill",
             title: "You're all set",
-            message: "Tap your desk tag whenever you want to focus.\n\nFor one-tap starts without opening the app, add a Shortcuts automation: Shortcuts → Automation → NFC → your desk sticker → Desk Tag Tapped."
+            message: "Tap your desk tag whenever you want to focus. Tap it again when you're done."
         ) {
+            SecondaryButton("Make it one tap (Shortcuts)") { showShortcutGuide = true }
             PrimaryButton("Start using Tawfeeq") { model.completeOnboarding() }
         }
     }

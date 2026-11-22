@@ -225,8 +225,14 @@ private struct PassesCard: View {
         InsightCard(title: "Passes", symbol: "hourglass", tint: Theme.pass) {
             HStack(spacing: 24) {
                 number("\(summary.totalPasses)", "taken", Theme.text)
-                number("\(backToBack)", "back-to-back", backToBack > 0 ? Theme.pass : Theme.text)
+                number("\(backToBack)", "back-to-back", backToBack > 0 ? Theme.passText : Theme.text)
                 number("\(withoutTag)", "ended without tag", Theme.text)
+            }
+            if summary.changedMind > 0 {
+                Label("You changed your mind \(summary.changedMind) time\(summary.changedMind == 1 ? "" : "s"). That's the breathing pause working.",
+                      systemImage: "leaf.fill")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Theme.focus)
             }
             let sorted = summary.intentions.sorted { $0.value > $1.value }
             if !sorted.isEmpty {
@@ -279,6 +285,11 @@ private struct MorningsCard: View {
                     }
                     .frame(maxWidth: .infinity)
                 }
+            }
+            if summary.snoozes > 0 {
+                Text("Alarm stopped \(summary.snoozes) time\(summary.snoozes == 1 ? "" : "s") before reaching your desk.")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.secondaryText)
             }
             if summary.checkIns == 0 {
                 Text("Turn on the wake alarm in Rules. Each morning you tap your desk tag shows up here.")

@@ -1,7 +1,11 @@
 import SwiftUI
 
+import FamilyControls
+
 struct RootView: View {
     @EnvironmentObject private var model: AppModel
+    @State private var showBlockPicker = false
+    @State private var showLostTag = false
 
     var body: some View {
         Group {
@@ -22,16 +26,55 @@ struct RootView: View {
             }
         }
         .alert(
-            "Tawfeeq",
+            model.alert?.title ?? "Tawfeeq",
             isPresented: Binding(
                 get: { model.alert != nil },
                 set: { if !$0 { model.alert = nil } }
             ),
             presenting: model.alert
-        ) { _ in
-            Button("OK", role: .cancel) {}
+        ) { alert in
+            if let actionTitle = alert.action.title {
+                Button(actionTitle) { perform(alert.action) }
+                Button("Not now", role: .cancel) {}
+            } else {
+                Button("OK", role: .cancel) {}
+            }
         } message: { alert in
             Text(alert.message)
+        }
+        .familyActivityPicker(isPresented: $showBlockPicker, selection: Binding(
+            get: { model.config.blocked },
+            set: { selection in
+                var config = model.config
+                config.blocked = selection
+                if config.mode == .everythingExceptAllowed { config.mode = .selected }
+                model.updateConfig(config)
+            }
+        ))
+        .sheet(isPresented: $showLostTag) {
+            NavigationStack {
+                LostTagView()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) { Button("Done") { showLostTag = false } }
+                    }
+            }
+        }
+    }
+
+    private func perform(_ action: AppAlert.Action) {
+        switch action {
+        case .none: break
+        case .openSettings:
+            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+        case .retryScan:
+            Task {
+                try? await Task.sleep(for: .milliseconds(400))
+                await model.scanToToggle()
+            }
+        case .chooseApps:
+            showBlockPicker = true
+        case .lostTag:
+            showLostTag = true
         }
     }
 }

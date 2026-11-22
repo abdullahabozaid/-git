@@ -1,8 +1,10 @@
+import FamilyControls
 import SwiftUI
 
 /// Everything that decides what gets blocked, and when.
 struct RulesView: View {
     @EnvironmentObject private var model: AppModel
+    @State private var showAllowPicker = false
 
     var body: some View {
         NavigationStack {
@@ -14,8 +16,8 @@ struct RulesView: View {
                         RuleRow(symbol: "hand.raised.fill", tint: Theme.focus,
                                 title: "Block list", detail: blockDetail)
                     }
-                    NavigationLink {
-                        BlockListView()
+                    Button {
+                        showAllowPicker = true
                     } label: {
                         RuleRow(symbol: "checkmark.shield.fill", tint: Theme.focus,
                                 title: "Always allowed",
@@ -23,6 +25,7 @@ struct RulesView: View {
                                     ? "Nothing yet. Add Maps, banking, 2FA…"
                                     : "\(model.config.allowed.applicationTokens.count) apps never blocked")
                     }
+                    .foregroundStyle(Theme.text)
                 } header: {
                     Text("During focus")
                 } footer: {
@@ -58,6 +61,14 @@ struct RulesView: View {
             .scrollContentBackground(.hidden)
             .background(Theme.background)
             .navigationTitle("Rules")
+            .familyActivityPicker(isPresented: $showAllowPicker, selection: Binding(
+                get: { model.config.allowed },
+                set: { selection in
+                    var config = model.config
+                    config.allowed = selection
+                    model.updateConfig(config)
+                }
+            ))
         }
     }
 

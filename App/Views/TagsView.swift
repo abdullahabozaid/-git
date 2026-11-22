@@ -106,17 +106,37 @@ private struct EnrollTagSheet: View {
 
     init(defaultRole: TagRole) {
         _role = State(initialValue: defaultRole)
+        _name = State(initialValue: defaultRole == .desk ? "Desk" : "Drawer")
+    }
+
+    private var suggestions: [String] {
+        role == .desk ? ["Desk", "Study", "Office", "Kitchen"] : ["Drawer", "Bag", "Car", "Wallet"]
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField(role == .desk ? "Name (e.g. Desk)" : "Name (e.g. Drawer)", text: $name)
                     Picker("Role", selection: $role) {
                         ForEach(TagRole.allCases) { Text($0.label).tag($0) }
                     }
                     .pickerStyle(.segmented)
+                    // Recognition over recall: pick a name, typing is optional.
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(suggestions, id: \.self) { suggestion in
+                                let selected = name == suggestion
+                                Button(suggestion) { name = suggestion }
+                                    .font(.subheadline.weight(.medium))
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                                    .foregroundStyle(selected ? Color.white : Theme.text)
+                                    .background(Capsule().fill(selected ? Theme.focus : Theme.secondaryText.opacity(0.12)))
+                                    .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    TextField("Or type a name", text: $name)
                 } footer: {
                     Text("You'll tap the tag twice: once to read it, once to confirm and write Tawfeeq's link onto it.")
                 }

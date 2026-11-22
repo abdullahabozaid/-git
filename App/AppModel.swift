@@ -4,8 +4,25 @@ import SwiftUI
 import UserNotifications
 
 struct AppAlert: Identifiable {
+    /// A way out of the problem, shown as the alert's main button.
+    enum Action {
+        case none, openSettings, retryScan, chooseApps, lostTag
+
+        var title: String? {
+            switch self {
+            case .none: nil
+            case .openSettings: "Open Settings"
+            case .retryScan: "Try again"
+            case .chooseApps: "Choose apps"
+            case .lostTag: "Lost your tag?"
+            }
+        }
+    }
+
     let id = UUID()
+    var title: String = "Tawfeeq"
     let message: String
+    var action: Action = .none
 }
 
 /// Shown when a session ends ("52 minutes of focus. 1 pass.").
@@ -123,7 +140,11 @@ final class AppModel: ObservableObject {
         do {
             try await AuthorizationCenter.shared.requestAuthorization(for: .individual)
         } catch {
-            alert = AppAlert(message: "Screen Time permission wasn't granted. \(error.localizedDescription)")
+            alert = AppAlert(
+                title: "Screen Time is off",
+                message: "Tawfeeq needs Screen Time to block apps. Turn it on in Settings → Screen Time → Apps with Screen Time Access.",
+                action: .openSettings
+            )
         }
         refreshAuthorization()
     }
@@ -140,6 +161,11 @@ final class AppModel: ObservableObject {
     func completeOnboarding() {
         store.onboardingCompleted = true
         onboardingCompleted = true
+        EventLog.append(.onboardingCompleted)
+    }
+
+    func logPassSheet(opened: Bool) {
+        EventLog.append(opened ? .passSheetOpened : .passAbandoned)
     }
 
     // MARK: - Lifecycle
@@ -233,12 +259,12 @@ final class AppModel: ObservableObject {
     func scanToToggle() async {
         guard !isScanning else { return }
         guard !tags.isEmpty else {
-            alert = AppAlert(message: "Add your desk tag first in the Tags tab.")
+            alert = AppAlert(title: "No desk tag yet", message: "Add your desk sticker in Settings → Tags. It takes two taps.")
             return
         }
         let wake = WakeAlarms.pendingWake()
         if wake == nil, !isFocusing, let problem = startProblem() {
-            alert = AppAlert(message: problem)
+            alert = problem
             return
         }
 
@@ -253,8 +279,9 @@ final class AppModel: ObservableObject {
         defer { isScanning = false }
         do {
             let result = try await scanner.read(prompt: prompt) { result in
-                known.contains { $0.matches(uid: result.uid) } ? nil : "That tag isn't registered with Tawfeeq."
+                known.contains { $0.matches(uid: result.uid) } ? nil : "That's not one of your Tawfeeq tags."
             }
+            EventLog.append(.scanSucceeded)
             guard let tag = known.first(where: { $0.matches(uid: result.uid) }) else { return }
             if let index = tags.firstIndex(where: { $0.id == tag.id }) {
                 tags[index].lastScannedAt = Date()
@@ -280,20 +307,40 @@ final class AppModel: ObservableObject {
         } catch let error as ScanError where error == .cancelled {
             // User closed the sheet.
         } catch {
-            alert = AppAlert(message: error.localizedDescription)
+            alert = scanAlert(for: error)
         }
     }
 
-    private func startProblem() -> String? {
-        if !isAuthorized { return "Tawfeeq needs Screen Time permission first." }
-        if !config.hasAnythingToBlock { return "Choose apps to block first in the Block list tab." }
-        if config.exceedsAppLimit { return "iOS can only block \(BlockConfig.maxAppTokens) individual apps. Remove some, or block a whole category instead." }
+    /// Specific, recoverable NFC errors (logged for the scan success-rate metric).
+    private func scanAlert(for error: Error) -> AppAlert {
+        let scanError = error as? ScanError
+        EventLog.append(.scanFailed, info: ["reason": error.localizedDescription])
+        switch scanError {
+        case .unavailable:
+            return AppAlert(title: "NFC isn't available", message: "This iPhone can't read NFC tags right now. Check that Airplane Mode is off, then try again.", action: .retryScan)
+        case .rejected(let message):
+            return AppAlert(title: "Not your desk tag", message: message + " Use the sticker you registered, or your spare.", action: .lostTag)
+        default:
+            return AppAlert(title: "Didn't catch the tag", message: "Hold the top edge of your iPhone flat against the sticker for a second.", action: .retryScan)
+        }
+    }
+
+    private func startProblem() -> AppAlert? {
+        if !isAuthorized {
+            return AppAlert(title: "Screen Time is off", message: "Tawfeeq needs Screen Time to block apps.", action: .openSettings)
+        }
+        if !config.hasAnythingToBlock {
+            return AppAlert(title: "Nothing to block yet", message: "Choose the apps that distract you, then tap your desk tag.", action: .chooseApps)
+        }
+        if config.exceedsAppLimit {
+            return AppAlert(title: "Too many apps", message: "iOS can block up to \(BlockConfig.maxAppTokens) individual apps. Block a whole category instead, like Social.", action: .chooseApps)
+        }
         return nil
     }
 
     private func startSession(with tag: EnrolledTag?, source: SessionSource) {
         if let problem = startProblem() {
-            alert = AppAlert(message: problem)
+            alert = problem
             return
         }
         blocker.apply(config)
@@ -388,7 +435,7 @@ final class AppModel: ObservableObject {
               url.pathComponents[1] == "t" else { return }
         let secret = url.pathComponents[2]
         guard let tag = tags.first(where: { $0.secret == secret }) else {
-            alert = AppAlert(message: "This tag isn't registered on this phone.")
+            alert = AppAlert(title: "Unknown tag", message: "That sticker isn't registered on this iPhone. Add it in Settings → Tags.")
             return
         }
         if isFocusing {
@@ -450,7 +497,7 @@ final class AppModel: ObservableObject {
         } catch let error as ScanError where error == .cancelled {
             // User closed the sheet.
         } catch {
-            alert = AppAlert(message: error.localizedDescription)
+            alert = scanAlert(for: error)
         }
     }
 
@@ -503,11 +550,11 @@ final class AppModel: ObservableObject {
             return
         }
         if newRoutine.nightLockEnabled, !newRoutine.nightLockIntervalIsValid {
-            alert = AppAlert(message: "Night lock must start at least 15 minutes before your wake time.")
+            alert = AppAlert(title: "Night lock too short", message: "Night lock needs to start at least 15 minutes before your wake time.")
             return
         }
         if newRoutine.wakeEnabled, !(await WakeAlarms.authorize()) {
-            alert = AppAlert(message: "Tawfeeq needs permission to ring alarms. Turn it on in Settings → Tawfeeq → Alarms.")
+            alert = AppAlert(title: "Alarms are off", message: "Allow Tawfeeq to ring alarms in Settings → Tawfeeq → Alarms.", action: .openSettings)
             return
         }
 
@@ -530,11 +577,11 @@ final class AppModel: ObservableObject {
 
     func testAlarm() async {
         guard await WakeAlarms.authorize() else {
-            alert = AppAlert(message: "Tawfeeq needs permission to ring alarms. Turn it on in Settings → Tawfeeq → Alarms.")
+            alert = AppAlert(title: "Alarms are off", message: "Allow Tawfeeq to ring alarms in Settings → Tawfeeq → Alarms.", action: .openSettings)
             return
         }
         await WakeAlarms.scheduleTest()
-        alert = AppAlert(message: "A test alarm will ring in about 30 seconds. Lock your phone to see it full screen.")
+        alert = AppAlert(title: "Test alarm set", message: "It rings in about 30 seconds. Lock your phone to see it full screen.")
     }
 
     // MARK: - Stats

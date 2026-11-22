@@ -8,6 +8,8 @@ enum Theme {
     static let focus = color(light: 0x0F6E6A, dark: 0x3FB8AE)
     static let gold = color(light: 0xC8902E, dark: 0xE2B45A)
     static let pass = color(light: 0xD9822B, dark: 0xF0A04B)
+    /// Amber for *text*: darker in light mode to meet WCAG AA (≈4.7:1 on parchment).
+    static let passText = color(light: 0xA65E14, dark: 0xF0A04B)
     static let night = color(light: 0x2B3A67, dark: 0x7F8FD1)
     static let text = color(light: 0x1C1B19, dark: 0xECE8E1)
     static let secondaryText = color(light: 0x6B665E, dark: 0x9AA0A9)

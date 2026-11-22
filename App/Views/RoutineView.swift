@@ -3,7 +3,6 @@ import SwiftUI
 struct RoutineView: View {
     @EnvironmentObject private var model: AppModel
     @State private var draft = Routine()
-    @State private var isSaving = false
 
     var body: some View {
         Group {
@@ -39,33 +38,24 @@ struct RoutineView: View {
                     Text("From \(Self.format(draft.nightLockStart)), your block list locks automatically and stays locked until you tap your desk tag in the morning (from \(Self.format(draft.wakeTime))). 5-minute passes still work.")
                 }
 
-                if draft != model.routine {
-                    Section {
-                        Button {
-                            isSaving = true
-                            Task {
-                                await model.updateRoutine(draft)
-                                draft = model.routine
-                                isSaving = false
-                            }
-                        } label: {
-                            Text("Save routine").frame(maxWidth: .infinity)
-                        }
-                        .disabled(isSaving)
-                        Button("Discard changes", role: .cancel) { draft = model.routine }
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-
                 Section {
                     Button("Test alarm (rings in 30 seconds)") {
                         Task { await model.testAlarm() }
                     }
+                } footer: {
+                    Text("Changes save automatically.")
                 }
             }
             .disabled(model.isFocusing)
             .navigationTitle("Routine")
             .onAppear { draft = model.routine }
+            .task(id: draft) {
+                // Auto-save (debounced): nothing is lost if you leave the screen.
+                guard draft != model.routine else { return }
+                do { try await Task.sleep(for: .milliseconds(700)) } catch { return }
+                await model.updateRoutine(draft)
+                if draft != model.routine { draft = model.routine } // rejected: show what's actually saved
+            }
         }
     }
 

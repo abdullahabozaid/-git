@@ -13,6 +13,10 @@ struct DayStats: Identifiable, Equatable {
     var minutesFromAlarm: Int?
     var nightLocked = false
     var endedWithoutTag = 0
+    var passesAbandoned = 0      // opened the pass sheet, then didn't take it
+    var shieldRequests = 0       // first tap on the block screen's pass button
+    var shieldPasses = 0         // passes actually started from the block screen
+    var snoozes = 0              // alarm Stop pressed before checking in
     /// Streak kept alive by a grace day (one allowed per 7 days).
     var isGraceDay = false
 
@@ -33,6 +37,11 @@ struct StatsSummary: Equatable {
     var totalPasses: Int { days.reduce(0) { $0 + $1.passes } }
     var checkIns: Int { days.filter { $0.checkIn != nil }.count }
     var today: DayStats? { days.last }
+    /// "Changed my mind": started a pass (app or block screen) but didn't take it.
+    var changedMind: Int {
+        days.reduce(0) { $0 + $1.passesAbandoned + max(0, $1.shieldRequests - $1.shieldPasses) }
+    }
+    var snoozes: Int { days.reduce(0) { $0 + $1.snoozes } }
 }
 
 enum StatsBuilder {
@@ -92,7 +101,14 @@ enum StatsBuilder {
                 if event.info["backToBack"] == "true" { days[day]?.backToBackPasses += 1 }
                 let intention = event.info["intention"].flatMap { $0.isEmpty ? nil : $0 } ?? "unspecified"
                 intentions[intention, default: 0] += 1
+                if event.info["source"] == "shield" { days[day]?.shieldPasses += 1 }
                 passHours[calendar.component(.hour, from: event.date), default: 0] += 1
+            case .passAbandoned:
+                days[day]?.passesAbandoned += 1
+            case .shieldPassRequested:
+                days[day]?.shieldRequests += 1
+            case .alarmStopped:
+                days[day]?.snoozes += 1
             case .morningCheckIn:
                 days[day]?.checkIn = event.date
                 days[day]?.minutesFromAlarm = event.info["minutesFromAlarm"].flatMap(Int.init)

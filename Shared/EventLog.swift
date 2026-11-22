@@ -17,6 +17,14 @@ struct LogEvent: Codable, Identifiable {
         case morningCheckIn
         case alarmStopped
         case routineEdited
+        // Usability metrics (local only)
+        case scanSucceeded
+        case scanFailed
+        case passSheetOpened
+        case passAbandoned
+        case shieldPassRequested
+        case onboardingStarted
+        case onboardingCompleted
     }
 
     var id = UUID()

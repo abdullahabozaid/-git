@@ -33,6 +33,7 @@ final class ShieldActionExtension: ShieldActionDelegate {
             guard let requested = store.shieldPassRequestedAt,
                   now.timeIntervalSince(requested) < ShieldPassFlow.requestValidity else {
                 store.shieldPassRequestedAt = now
+                EventLog.append(.shieldPassRequested)
                 return .defer
             }
             guard now.timeIntervalSince(requested) >= wait else {

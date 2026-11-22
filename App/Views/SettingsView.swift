@@ -25,17 +25,31 @@ struct SettingsView: View {
                     Text("Your desk")
                 }
 
-                Section("Goal") {
+                Section {
+                    // One tap for common goals; the stepper fine-tunes.
+                    HStack(spacing: 8) {
+                        ForEach([60, 120, 180, 240, 360], id: \.self) { minutes in
+                            let selected = model.dailyGoalMinutes == minutes
+                            Button(Formatting.duration(TimeInterval(minutes * 60))) {
+                                model.setDailyGoal(minutes: minutes)
+                            }
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 36)
+                            .foregroundStyle(selected ? Color.white : Theme.text)
+                            .background(Capsule().fill(selected ? Theme.focus : Theme.secondaryText.opacity(0.12)))
+                            .buttonStyle(.borderless)
+                            .accessibilityAddTraits(selected ? .isSelected : [])
+                        }
+                    }
                     Stepper(value: Binding(get: { model.dailyGoalMinutes },
                                            set: { model.setDailyGoal(minutes: $0) }),
                             in: 15...600, step: 15) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Daily focus goal")
-                            Text(Formatting.duration(TimeInterval(model.dailyGoalMinutes * 60)))
-                                .font(.caption)
-                                .foregroundStyle(Theme.secondaryText)
-                        }
+                        LabeledContent("Custom", value: Formatting.duration(TimeInterval(model.dailyGoalMinutes * 60)))
                     }
+                } header: {
+                    Text("Daily focus goal")
+                } footer: {
+                    Text("Streaks count days you reach this.")
                 }
 
                 Section {
@@ -65,6 +79,12 @@ struct SettingsView: View {
                 }
 
                 Section("Help") {
+                    NavigationLink {
+                        DiagnosticsView()
+                    } label: {
+                        RuleRow(symbol: "stethoscope", tint: Theme.secondaryText,
+                                title: "Diagnostics", detail: "Scan reliability and usage, all on this iPhone")
+                    }
                     NavigationLink {
                         LostTagView()
                     } label: {
