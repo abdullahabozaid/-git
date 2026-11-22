@@ -1,3 +1,4 @@
+import Foundation
 import ManagedSettings
 
 /// Handles the buttons on the block screen.
