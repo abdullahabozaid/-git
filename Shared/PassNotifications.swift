@@ -35,6 +35,14 @@ enum PassNotifications {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [oneMinuteID, endID])
     }
 
+    /// Immediate, one-off notification (e.g. "Night lock is on").
+    static func notifyNow(id: String, title: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: content, trigger: nil))
+    }
+
     /// Sunday 19:00: "Your week with Tawfeeq".
     static func scheduleWeeklySummary() {
         let content = UNMutableNotificationContent()

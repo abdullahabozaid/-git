@@ -116,5 +116,11 @@ enum NightLock {
             "source": SessionSource.nightLock.rawValue,
         ])
         WidgetSync.reload()
+        let wake = routine.wakeTime.date(on: now).map { $0.formatted(date: .omitted, time: .shortened) }
+        PassNotifications.notifyNow(
+            id: "uk.tawfeeq.nightLock",
+            title: "Night lock is on",
+            body: wake.map { "Rest well. Tap your desk tag after \($0) to unlock." } ?? "Rest well. Tap your desk tag in the morning to unlock."
+        )
     }
 }
