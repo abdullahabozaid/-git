@@ -47,6 +47,7 @@ final class AppModel: ObservableObject {
     @Published var lastSummary: SessionSummary?
     @Published private(set) var hapticsEnabled: Bool
     @Published private(set) var dailyGoalMinutes: Int
+    @Published private(set) var travelUntil: Date?
     /// Bumped on events that deserve a haptic; views attach .sensoryFeedback to these.
     @Published private(set) var successTick = 0
     @Published private(set) var warningTick = 0
@@ -66,6 +67,7 @@ final class AppModel: ObservableObject {
         onboardingCompleted = store.onboardingCompleted
         hapticsEnabled = store.hapticsEnabled
         dailyGoalMinutes = store.dailyGoalMinutes
+        travelUntil = store.travelUntil
         isAuthorized = AuthorizationCenter.shared.authorizationStatus == .approved
     }
 
@@ -89,6 +91,14 @@ final class AppModel: ObservableObject {
     func setDailyGoal(minutes: Int) {
         dailyGoalMinutes = minutes
         store.dailyGoalMinutes = minutes
+    }
+
+    /// Travel mode pauses night lock and the wake alarm. Logged like any routine edit.
+    func setTravel(until date: Date?) async {
+        travelUntil = date
+        store.travelUntil = date
+        EventLog.append(.routineEdited, info: ["travelUntil": date.map { ISO8601DateFormatter().string(from: $0) } ?? "off"])
+        await WakeAlarms.sync()
     }
 
     /// Control Center / widget / Siri start. Opens the app; ending still needs the tag.

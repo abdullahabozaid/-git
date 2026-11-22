@@ -6,6 +6,8 @@ struct OnboardingFlow: View {
     @EnvironmentObject private var model: AppModel
     @State private var step: Step = .welcome
     @State private var showPicker = false
+    @State private var showAllowPicker = false
+    @State private var allowed = FamilyActivitySelection()
     @State private var selection = FamilyActivitySelection()
     @State private var routine = Routine()
 
@@ -38,6 +40,12 @@ struct OnboardingFlow: View {
         }
         .animation(.snappy, value: step)
         .familyActivityPicker(isPresented: $showPicker, selection: $selection)
+        .familyActivityPicker(isPresented: $showAllowPicker, selection: $allowed)
+        .onChange(of: allowed) { _, newValue in
+            var config = model.config
+            config.allowed = newValue
+            model.updateConfig(config)
+        }
         .onChange(of: selection) { _, newValue in
             var config = model.config
             config.blocked = newValue
@@ -48,6 +56,7 @@ struct OnboardingFlow: View {
         }
         .onAppear {
             selection = model.config.blocked
+            allowed = model.config.allowed
             routine = model.routine
         }
         .sensoryFeedback(.selection, trigger: step)
@@ -113,6 +122,12 @@ struct OnboardingFlow: View {
                     .foregroundStyle(.tint)
             }
             SecondaryButton(count > 0 ? "Change selection" : "Choose apps") { showPicker = true }
+            if count > 0 {
+                Button(allowed.applicationTokens.isEmpty
+                       ? "Always allow some apps (Maps, banking…)"
+                       : "\(allowed.applicationTokens.count) apps always allowed") { showAllowPicker = true }
+                    .font(.subheadline)
+            }
             PrimaryButton("Continue") { advance() }
                 .disabled(count == 0)
         }
@@ -124,7 +139,7 @@ struct OnboardingFlow: View {
             symbol: hasDeskTag ? "checkmark.seal.fill" : "wave.3.right",
             title: hasDeskTag ? "Desk tag ready" : "Register your desk tag",
             message: hasDeskTag
-                ? "Your desk sticker is set up. You can add a spare one later in Settings."
+                ? "Your desk sticker is set up.\n\nTip: register a spare sticker later (Settings → Tags) and keep it in a drawer, in case the desk one goes missing."
                 : "Hold the top of your iPhone against the NFC sticker on your desk. You'll tap twice: once to read it, once to set it up.\n\nTip: put it somewhere you have to stand up and walk to."
         ) {
             if hasDeskTag {

@@ -38,6 +38,27 @@ struct SettingsView: View {
                     }
                 }
 
+                Section {
+                    Toggle("Travel mode", isOn: Binding(
+                        get: { model.travelUntil.map { $0 > Date() } ?? false },
+                        set: { on in
+                            Task {
+                                await model.setTravel(until: on ? Calendar.current.date(byAdding: .day, value: 3, to: Calendar.current.startOfDay(for: Date())) : nil)
+                            }
+                        }
+                    ))
+                    if let until = model.travelUntil, until > Date() {
+                        DatePicker("Back on", selection: Binding(
+                            get: { until },
+                            set: { date in Task { await model.setTravel(until: date) } }
+                        ), in: Date()..., displayedComponents: .date)
+                    }
+                } header: {
+                    Text("Away from your desk")
+                } footer: {
+                    Text("Pauses night lock and the wake alarm while you're away from your desk tag. Focus sessions still work with your spare tag.")
+                }
+
                 Section("Feel") {
                     Toggle("Haptics", isOn: Binding(get: { model.hapticsEnabled },
                                                     set: { model.setHaptics($0) }))

@@ -19,6 +19,7 @@ final class SharedStore {
         static let onboardingCompleted = "onboardingCompleted"
         static let hapticsEnabled = "hapticsEnabled"
         static let shieldPassRequestedAt = "shieldPassRequestedAt"
+        static let travelUntil = "travelUntil"
     }
 
     private let defaults: UserDefaults
@@ -92,6 +93,17 @@ final class SharedStore {
     var shieldPassRequestedAt: Date? {
         get { defaults.object(forKey: Key.shieldPassRequestedAt) as? Date }
         set { defaults.set(newValue, forKey: Key.shieldPassRequestedAt) }
+    }
+
+    /// Travel mode: night lock and wake alarm are paused until this date.
+    var travelUntil: Date? {
+        get { defaults.object(forKey: Key.travelUntil) as? Date }
+        set { defaults.set(newValue, forKey: Key.travelUntil) }
+    }
+
+    func isTraveling(at date: Date = Date()) -> Bool {
+        guard let travelUntil else { return false }
+        return date < travelUntil
     }
 
     var hapticsEnabled: Bool {

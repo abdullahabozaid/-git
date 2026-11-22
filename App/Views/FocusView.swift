@@ -363,8 +363,28 @@ private struct HoldToStartButton: View {
 struct SessionSummarySheet: View {
     let summary: SessionSummary
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var sunrise = false
 
     var body: some View {
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                if summary.checkedIn != nil {
+                    // Sunrise sweep for the morning check-in.
+                    LinearGradient(colors: [Theme.gold.opacity(0.45), Theme.pass.opacity(0.2), Theme.background],
+                                   startPoint: .top, endPoint: .bottom)
+                        .offset(y: sunrise || reduceMotion ? 0 : 400)
+                        .opacity(sunrise || reduceMotion ? 1 : 0)
+                        .ignoresSafeArea()
+                }
+            }
+            .onAppear {
+                withAnimation(.easeOut(duration: 1.2)) { sunrise = true }
+            }
+    }
+
+    private var content: some View {
         VStack(spacing: 18) {
             Image(systemName: summary.checkedIn != nil ? "sunrise.fill" : "checkmark.seal.fill")
                 .font(.system(size: 56))

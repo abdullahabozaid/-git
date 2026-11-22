@@ -100,6 +100,7 @@ enum NightLock {
         let routine = store.routine
         guard routine.nightLockEnabled,
               routine.isInNightWindow(now),
+              !store.isTraveling(at: now),
               store.activeSession == nil else { return }
         // Already unlocked with the tag tonight/this morning? Don't re-lock.
         if let windowStart = routine.currentNightStart(now),

@@ -37,6 +37,7 @@ enum WakeAlarms {
     /// The wake time we're currently around (2 h before → 1 h after) and haven't checked in for.
     static func pendingWake(now: Date = Date(), store: SharedStore = .shared) -> Date? {
         store.routine.wakeDates(from: now, days: 2).first { wake in
+            !store.isTraveling(at: wake) &&
             now >= wake.addingTimeInterval(-Routine.checkInEarlyWindow)
                 && now <= wake.addingTimeInterval(Routine.checkInLateWindow)
                 && !isCheckedIn(for: wake, store: store)
@@ -83,7 +84,8 @@ enum WakeAlarms {
 
     /// Everything that should be scheduled right now.
     static func plan(now: Date, store: SharedStore = .shared) -> [PlannedAlarm] {
-        let wakes = store.routine.wakeDates(from: now).filter { !isCheckedIn(for: $0, store: store) }
+        let wakes = store.routine.wakeDates(from: now)
+            .filter { !isCheckedIn(for: $0, store: store) && !store.isTraveling(at: $0) }
         var alarms: [PlannedAlarm] = []
         for (index, wake) in wakes.enumerated() {
             alarms.append(PlannedAlarm(id: stableID(wake, 0), fireDate: wake))
