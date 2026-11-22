@@ -126,11 +126,23 @@ enum WakeAlarms {
     }
 
     private static func configuration(firingAt date: Date) -> AlarmManager.AlarmConfiguration<WakeMetadata> {
-        let alert = AlarmPresentation.Alert(
-            title: "Time to get up",
-            secondaryButton: AlarmButton(text: "Scan desk tag", textColor: .white, systemImageName: "wave.3.right"),
-            secondaryButtonBehavior: .custom
-        )
+        let scanButton = AlarmButton(text: "Scan desk tag", textColor: .white, systemImageName: "wave.3.right")
+        let alert: AlarmPresentation.Alert
+        if #available(iOS 26.1, *) {
+            // 26.1+: the system draws its own slide-to-stop control.
+            alert = AlarmPresentation.Alert(
+                title: "Time to get up",
+                secondaryButton: scanButton,
+                secondaryButtonBehavior: .custom
+            )
+        } else {
+            alert = AlarmPresentation.Alert(
+                title: "Time to get up",
+                stopButton: AlarmButton(text: "Stop", textColor: .white, systemImageName: "stop.circle"),
+                secondaryButton: scanButton,
+                secondaryButtonBehavior: .custom
+            )
+        }
         return .alarm(
             schedule: .fixed(date),
             attributes: AlarmAttributes(presentation: AlarmPresentation(alert: alert), tintColor: .green),
