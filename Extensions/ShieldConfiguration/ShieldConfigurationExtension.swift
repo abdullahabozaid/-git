@@ -21,11 +21,17 @@ final class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     }
 
     private func make(name: String?) -> ShieldConfiguration {
-        var subtitle = "\(name ?? "This app") is blocked while you focus."
-        if let session = SharedStore.shared.activeSession {
-            subtitle += "\nFocusing since \(session.startedAt.formatted(date: .omitted, time: .shortened))."
+        let session = SharedStore.shared.activeSession
+        var subtitle: String
+        if session?.source == .nightLock {
+            subtitle = "\(name ?? "This app") is locked for the night.\nTap your desk tag in the morning to unlock."
+        } else {
+            subtitle = "\(name ?? "This app") is blocked while you focus."
+            if let session {
+                subtitle += "\nFocusing since \(session.startedAt.formatted(date: .omitted, time: .shortened))."
+            }
+            subtitle += "\nTap your desk tag to end the session."
         }
-        subtitle += "\nTap your desk tag to end the session."
 
         let passes = PassManager.summary().passes
         if passes > 0 {

@@ -14,6 +14,9 @@ struct LogEvent: Codable, Identifiable {
         case authorizationGranted
         case passStarted
         case passEnded
+        case morningCheckIn
+        case alarmStopped
+        case routineEdited
     }
 
     var id = UUID()
@@ -56,7 +59,7 @@ enum EventLog {
     /// Total focused seconds since `start`, from completed sessions only.
     static func focusedSeconds(since start: Date) -> TimeInterval {
         all()
-            .filter { $0.kind == .sessionEnded && $0.date >= start }
+            .filter { $0.kind == .sessionEnded && $0.date >= start && $0.info["source"] != SessionSource.nightLock.rawValue }
             .compactMap { $0.info["durationSeconds"].flatMap(TimeInterval.init) }
             .reduce(0, +)
     }

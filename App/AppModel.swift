@@ -19,6 +19,9 @@ final class AppModel: ObservableObject {
     /// Set while a 5-minute pass is running (may be started from the block screen, i.e. another process).
     @Published private(set) var passExpiresAt: Date?
     @Published private(set) var passSummary = PassManager.DaySummary()
+    @Published private(set) var routine: Routine
+    /// Set around the wake time until the desk tag is scanned (morning check-in).
+    @Published private(set) var pendingWake: Date?
     @Published private(set) var isScanning = false
     @Published var alert: AppAlert?
 
@@ -31,6 +34,7 @@ final class AppModel: ObservableObject {
         tags = store.tags
         session = store.activeSession
         passExpiresAt = store.passExpiresAt
+        routine = store.routine
         isAuthorized = AuthorizationCenter.shared.authorizationStatus == .approved
     }
 
@@ -67,6 +71,13 @@ final class AppModel: ObservableObject {
     func onForeground() {
         refreshAuthorization()
         reconcile()
+        if routine.nightLockEnabled, !NightLock.isMonitoring {
+            try? NightLock.sync(routine)
+        }
+        Task {
+            await WakeAlarms.sync()
+            pendingWake = WakeAlarms.pendingWake()
+        }
     }
 
     /// Self-heal: make the real shield state match what it should be.
@@ -80,6 +91,7 @@ final class AppModel: ObservableObject {
         }
         passExpiresAt = store.passExpiresAt
         passSummary = PassManager.summary(for: now)
+        pendingWake = WakeAlarms.pendingWake(now: now)
 
         guard isAuthorized else { return }
         let shouldShield = isFocusing && !isOnPass(now: now)
@@ -124,6 +136,16 @@ final class AppModel: ObservableObject {
         }
     }
 
+    // MARK: - Morning
+
+    /// Run by the alarm's "Scan desk tag" button.
+    func handleWakeScanRequest() {
+        Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            await scanToToggle()
+        }
+    }
+
     // MARK: - Sessions
 
     /// Main button: scan a tag, then start or end a session.
@@ -133,15 +155,18 @@ final class AppModel: ObservableObject {
             alert = AppAlert(message: "Add your desk tag first in the Tags tab.")
             return
         }
-        if !isFocusing, let problem = startProblem() {
+        let wake = WakeAlarms.pendingWake()
+        if wake == nil, !isFocusing, let problem = startProblem() {
             alert = AppAlert(message: problem)
             return
         }
 
         let known = tags
-        let prompt = isFocusing
-            ? "Hold your iPhone near your desk tag to end the session."
-            : "Hold your iPhone near your desk tag to start focusing."
+        let prompt = wake != nil
+            ? "Good morning! Hold your iPhone near your desk tag to check in."
+            : isFocusing
+                ? "Hold your iPhone near your desk tag to end the session."
+                : "Hold your iPhone near your desk tag to start focusing."
 
         isScanning = true
         defer { isScanning = false }
@@ -150,7 +175,13 @@ final class AppModel: ObservableObject {
                 known.contains { $0.matches(uid: result.uid) } ? nil : "That tag isn't registered with Tawfeeq."
             }
             guard let tag = known.first(where: { $0.matches(uid: result.uid) }) else { return }
-            if isFocusing {
+            if wake != nil {
+                // Morning check-in: silences the alarm and ends the night lock (or any session),
+                // but never starts a new session.
+                await WakeAlarms.checkIn()
+                pendingWake = WakeAlarms.pendingWake()
+                if isFocusing { endSession(with: tag) }
+            } else if isFocusing {
                 endSession(with: tag)
             } else {
                 startSession(with: tag, source: .tagScan)
@@ -190,6 +221,9 @@ final class AppModel: ObservableObject {
         guard let current = session else { return }
         PassManager.cancelForSessionEnd()
         passExpiresAt = nil
+        if current.source == .nightLock {
+            store.lastNightLockEndedAt = Date()
+        }
         blocker.clear()
         if blocker.isShielding { blocker.clear() } // one retry for the stuck-shield bug
         session = nil
@@ -197,6 +231,7 @@ final class AppModel: ObservableObject {
         EventLog.append(.sessionEnded, info: [
             "sessionID": current.id.uuidString,
             "endedBy": "tag",
+            "source": current.source.rawValue,
             "tag": tag.name,
             "tagRole": tag.role.rawValue,
             "durationSeconds": String(Int(Date().timeIntervalSince(current.startedAt))),
@@ -316,12 +351,55 @@ final class AppModel: ObservableObject {
         return true
     }
 
+    // MARK: - Routine (wake alarm + night lock)
+
+    func updateRoutine(_ newRoutine: Routine) async {
+        guard newRoutine != routine else { return }
+        guard !isFocusing else {
+            alert = AppAlert(message: "Your routine is locked during a focus session or night lock.")
+            return
+        }
+        if newRoutine.nightLockEnabled, !newRoutine.nightLockIntervalIsValid {
+            alert = AppAlert(message: "Night lock must start at least 15 minutes before your wake time.")
+            return
+        }
+        if newRoutine.wakeEnabled, !(await WakeAlarms.authorize()) {
+            alert = AppAlert(message: "Tawfeeq needs permission to ring alarms. Turn it on in Settings → Tawfeeq → Alarms.")
+            return
+        }
+
+        routine = newRoutine
+        store.routine = newRoutine
+        do {
+            try NightLock.sync(newRoutine)
+        } catch {
+            alert = AppAlert(message: "Couldn't schedule the night lock. \(error.localizedDescription)")
+        }
+        await WakeAlarms.sync()
+        EventLog.append(.routineEdited, info: [
+            "wakeEnabled": String(newRoutine.wakeEnabled),
+            "wakeTime": String(format: "%02d:%02d", newRoutine.wakeTime.hour, newRoutine.wakeTime.minute),
+            "nightLockEnabled": String(newRoutine.nightLockEnabled),
+            "nightLockStart": String(format: "%02d:%02d", newRoutine.nightLockStart.hour, newRoutine.nightLockStart.minute),
+        ])
+        reconcile()
+    }
+
+    func testAlarm() async {
+        guard await WakeAlarms.authorize() else {
+            alert = AppAlert(message: "Tawfeeq needs permission to ring alarms. Turn it on in Settings → Tawfeeq → Alarms.")
+            return
+        }
+        await WakeAlarms.scheduleTest()
+        alert = AppAlert(message: "A test alarm will ring in about 30 seconds. Lock your phone to see it full screen.")
+    }
+
     // MARK: - Stats (minimal for phase 1)
 
     func focusedToday(now: Date = Date()) -> TimeInterval {
         let startOfDay = Calendar.current.startOfDay(for: now)
         var total = EventLog.focusedSeconds(since: startOfDay)
-        if let session {
+        if let session, session.source != .nightLock {
             total += now.timeIntervalSince(max(session.startedAt, startOfDay))
         }
         return total

@@ -87,6 +87,7 @@ enum SessionSource: String, Codable {
     case tagScan
     case tagLink
     case shortcut
+    case nightLock
 }
 
 struct FocusSession: Codable, Equatable {

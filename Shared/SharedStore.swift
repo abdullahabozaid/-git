@@ -11,6 +11,10 @@ final class SharedStore {
         static let lastKnownAuthorized = "lastKnownAuthorized"
         static let passExpiresAt = "passExpiresAt"
         static let lastPassEndedAt = "lastPassEndedAt"
+        static let routine = "routine"
+        static let lastCheckIn = "lastCheckIn"
+        static let lastNightLockEndedAt = "lastNightLockEndedAt"
+        static let extraAlarms = "extraAlarms"
     }
 
     private let defaults: UserDefaults
@@ -50,6 +54,28 @@ final class SharedStore {
     var lastPassEndedAt: Date? {
         get { defaults.object(forKey: Key.lastPassEndedAt) as? Date }
         set { defaults.set(newValue, forKey: Key.lastPassEndedAt) }
+    }
+
+    var routine: Routine {
+        get { load(Key.routine) ?? Routine() }
+        set { save(newValue, Key.routine) }
+    }
+
+    /// Last morning check-in (desk tag scanned around the wake time).
+    var lastCheckIn: Date? {
+        get { defaults.object(forKey: Key.lastCheckIn) as? Date }
+        set { defaults.set(newValue, forKey: Key.lastCheckIn) }
+    }
+
+    var lastNightLockEndedAt: Date? {
+        get { defaults.object(forKey: Key.lastNightLockEndedAt) as? Date }
+        set { defaults.set(newValue, forKey: Key.lastNightLockEndedAt) }
+    }
+
+    /// One-off alarms: re-arms after Stop was pressed, and test alarms.
+    var extraAlarms: [PlannedAlarm] {
+        get { load(Key.extraAlarms) ?? [] }
+        set { save(newValue, Key.extraAlarms) }
     }
 
     private func load<T: Decodable>(_ key: String) -> T? {

@@ -33,8 +33,7 @@ struct FocusView: View {
                     Button {
                         Task { await model.scanToToggle() }
                     } label: {
-                        Label(model.isFocusing ? "Tap desk tag to end" : "Tap desk tag to start",
-                              systemImage: "wave.3.right")
+                        Label(mainButtonTitle, systemImage: "wave.3.right")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
@@ -82,6 +81,9 @@ struct FocusView: View {
                 } else if let session = model.session {
                     Text(Self.format(now.timeIntervalSince(session.startedAt)))
                         .font(.system(.title, design: .rounded).monospacedDigit().bold())
+                    if session.source == .nightLock {
+                        Text("night lock").font(.caption)
+                    }
                 } else {
                     Text("Not focusing")
                         .font(.title3.weight(.semibold))
@@ -100,9 +102,18 @@ struct FocusView: View {
             .foregroundStyle(summary.backToBack > 0 ? Color.orange : Color.secondary)
     }
 
+    private var mainButtonTitle: String {
+        if model.pendingWake != nil { return "Tap desk tag to check in" }
+        return model.isFocusing ? "Tap desk tag to end" : "Tap desk tag to start"
+    }
+
     @ViewBuilder
     private var hint: some View {
-        if model.tags.isEmpty {
+        if model.pendingWake != nil {
+            Label("Good morning. Tap your desk tag to check in and silence your alarm.", systemImage: "sun.max.fill")
+                .font(.footnote)
+                .foregroundStyle(.orange)
+        } else if model.tags.isEmpty {
             Label("Add your desk tag in the Tags tab to get started.", systemImage: "info.circle")
                 .font(.footnote)
                 .foregroundStyle(.secondary)

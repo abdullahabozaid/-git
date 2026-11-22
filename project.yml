@@ -38,6 +38,8 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         NFCReaderUsageDescription: Tawfeeq reads your desk tag to start and end focus sessions.
+        NSAlarmKitUsageDescription: Tawfeeq rings your wake alarm, which you turn off by tapping your desk tag.
+        UIRequiresFullScreen: true
         # Only needed so ISO 7816 cards don't break the scan sheet; we only use NTAG (MIFARE Ultralight family).
         com.apple.developer.nfc.readersession.iso7816.select-identifiers:
           - D2760000850101
