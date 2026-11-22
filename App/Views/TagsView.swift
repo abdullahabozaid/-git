@@ -130,7 +130,7 @@ private struct EnrollTagSheet: View {
                                     .font(.subheadline.weight(.medium))
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 8)
-                                    .foregroundStyle(selected ? Color.white : Theme.text)
+                                    .foregroundStyle(selected ? Theme.onFocus : Theme.text)
                                     .background(Capsule().fill(selected ? Theme.focus : Theme.secondaryText.opacity(0.12)))
                                     .buttonStyle(.plain)
                             }

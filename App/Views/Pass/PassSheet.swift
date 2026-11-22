@@ -22,6 +22,7 @@ struct PassSheet: View {
             }
         }
         .padding(24)
+        .background(Theme.background.ignoresSafeArea())
         .onAppear {
             recent = PassManager.recent()
             model.logPassSheet(opened: true)
@@ -58,10 +59,14 @@ struct PassSheet: View {
                             Label(option.label, systemImage: option.symbol)
                                 .font(.subheadline.weight(.medium))
                                 .frame(maxWidth: .infinity, minHeight: 44)
-                                .foregroundStyle(selected ? Color.white : Theme.text)
+                                .foregroundStyle(selected ? Theme.onPass : Theme.text)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(selected ? Theme.pass : Theme.surface)
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .fill(selected ? Theme.pass : Theme.background)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .strokeBorder(Theme.pass.opacity(selected ? 0 : 0.45), lineWidth: 1.5)
                                 )
                         }
                         .buttonStyle(.plain)
@@ -115,7 +120,7 @@ struct PassSheet: View {
                         .font(.system(size: 48, weight: .semibold, design: .rounded))
                         .monospacedDigit()
                         .contentTransition(.numericText(countsDown: true))
-                        .foregroundStyle(Theme.pass)
+                        .foregroundStyle(Theme.passText)
                 }
                 .frame(width: 200, height: 200)
                 .onAppear { breatheIn = true }
@@ -123,19 +128,13 @@ struct PassSheet: View {
                 Text(remaining > 0 ? (breatheIn ? "Breathe in… and out." : "Breathe.") : "Still want it?")
                     .font(.title3.weight(.semibold))
 
-                Button {
+                WideButton(title: "Unlock for 5 minutes", symbol: "lock.open.fill",
+                           fill: Theme.pass.opacity(remaining > 0 ? 0.35 : 1), text: Theme.onPass) {
+                    guard remaining == 0 else { return }
                     tookPass = true
                     model.takePass(intention: intention)
                     dismiss()
-                } label: {
-                    Text("Unlock for 5 minutes")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.pass)
-                .controlSize(.large)
                 .disabled(remaining > 0)
 
                 Button("Keep focusing instead") { dismiss() }

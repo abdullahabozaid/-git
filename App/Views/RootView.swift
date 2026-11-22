@@ -20,7 +20,9 @@ struct RootView: View {
                     Tab("Settings", systemImage: "gearshape.fill", value: "settings") { SettingsView() }
                 }
                 .onAppear { if let demoTab = model.demoTab { tab = demoTab } }
-                .tabViewBottomAccessory { MiniPlayer() }
+                .modifier(MiniPlayerAccessory(show: tab != "focus" && model.homeState().kind != .idle) {
+                    tab = "focus"
+                })
                 .tabBarMinimizeBehavior(.onScrollDown)
                 .tint(Theme.focus)
             } else {
@@ -94,7 +96,7 @@ struct OnboardingView: View {
                 .foregroundStyle(.tint)
             Text("Tawfeeq")
                 .font(.largeTitle.bold())
-            Text("Tap your desk tag to lock distracting apps. Tap it again to unlock. Your phone stays focused until you go back to your desk.")
+            Text("Screen Time access was turned off, so Tawfeeq can't rest your apps right now.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
             Spacer()
@@ -102,15 +104,11 @@ struct OnboardingView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button {
+            PrimaryButton("Turn Screen Time back on") {
                 Task { await model.requestAuthorization() }
-            } label: {
-                Text("Allow Screen Time access")
-                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
         }
         .padding(24)
+        .background(Theme.background.ignoresSafeArea())
     }
 }

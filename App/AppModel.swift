@@ -32,6 +32,11 @@ struct SessionSummary: Identifiable {
     let passes: Int
     let wasNightLock: Bool
     let checkedIn: Date?
+    // Filled in by AppModel so the sheet can say something specific.
+    var todayFocus: TimeInterval = 0
+    var goal: TimeInterval = 0
+    var observation: String?
+    var enriched = false
 }
 
 /// What the Focus home (and mini-player) should show.
@@ -61,7 +66,11 @@ final class AppModel: ObservableObject {
     @Published private(set) var isScanning = false
     @Published var alert: AppAlert?
     @Published private(set) var onboardingCompleted: Bool
-    @Published var lastSummary: SessionSummary?
+    @Published var lastSummary: SessionSummary? {
+        didSet {
+            if let summary = lastSummary, !summary.enriched { lastSummary = enrich(summary) }
+        }
+    }
     @Published private(set) var hapticsEnabled: Bool
     @Published private(set) var dailyGoalMinutes: Int
     @Published private(set) var travelUntil: Date?
@@ -640,6 +649,33 @@ final class AppModel: ObservableObject {
 
     // MARK: - Stats
 
+    /// Adds today's progress and one specific, positive observation.
+    private func enrich(_ summary: SessionSummary, now: Date = Date()) -> SessionSummary {
+        var summary = summary
+        summary.enriched = true
+        refreshStats(now: now)
+        let stats = statsCache
+        summary.todayFocus = todayStats(now: now).focusSeconds
+        summary.goal = TimeInterval(dailyGoalMinutes * 60)
+        let lastWeek = stats?.days.suffix(7) ?? []
+        if summary.checkedIn != nil {
+            summary.observation = summary.duration > 0 ? "Your phone rested \(Formatting.duration(summary.duration))." : nil
+        } else if !summary.wasNightLock {
+            if summary.duration >= 20 * 60, summary.duration >= (stats?.longestSession ?? 0) - 1 {
+                summary.observation = "Your longest session this month."
+            } else if summary.todayFocus >= summary.goal, summary.todayFocus - summary.duration < summary.goal {
+                summary.observation = "That's your goal for today. Lovely."
+            } else if (stats?.currentStreak ?? 0) >= 2 {
+                summary.observation = "\(stats?.currentStreak ?? 0) days in a row."
+            } else if summary.passes == 0 {
+                summary.observation = "No passes. Steady."
+            } else if lastWeek.filter({ $0.focusSeconds > 0 }).count >= 4 {
+                summary.observation = "You've focused on \(lastWeek.filter { $0.focusSeconds > 0 }.count) of the last 7 days."
+            }
+        }
+        return summary
+    }
+
     func refreshStats(now: Date = Date()) {
         statsCache = stats(days: 35, now: now)
         statsCacheDate = now
@@ -657,6 +693,20 @@ final class AppModel: ObservableObject {
     }
 
     var currentStreak: Int { statsCache?.currentStreak ?? 0 }
+
+    /// Days in the last 28 that met the goal ("rhythm"), a gentler framing than a streak.
+    var rhythm: (met: Int, of: Int) {
+        let days = statsCache?.days.suffix(28) ?? []
+        let goal = TimeInterval(dailyGoalMinutes * 60)
+        return (days.filter { $0.focusSeconds >= goal }.count, max(days.count, 1))
+    }
+
+    var currentPassIntention: PassIntention? {
+        isDemo ? .navigation : store.passIntention.flatMap(PassIntention.init(rawValue:))
+    }
+
+    /// Whether the user has ever focused (first-run home shows no ring).
+    var hasHistory: Bool { (statsCache?.totalFocus ?? 0) > 0 || session != nil }
 
     /// "14 apps", "14 apps and 3 categories", "all but 5 apps"
     var blockedSummary: String {

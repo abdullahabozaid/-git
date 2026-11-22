@@ -14,6 +14,12 @@ enum Theme {
     static let text = color(light: 0x1C1B19, dark: 0xECE8E1)
     static let secondaryText = color(light: 0x6B665E, dark: 0x9AA0A9)
 
+    /// Text/icons on tinted fills, chosen for ≥4.5:1 contrast in both appearances.
+    static let onFocus = color(light: 0xFFFFFF, dark: 0x0E1116)
+    static let onNight = color(light: 0xFFFFFF, dark: 0x0E1116)
+    static let onPass = color(light: 0x0E1116, dark: 0x0E1116)
+    static let onGold = color(light: 0x0E1116, dark: 0x0E1116)
+
     static let uiFocus = uiColor(light: 0x0F6E6A, dark: 0x3FB8AE)
     static let uiNight = uiColor(light: 0x2B3A67, dark: 0x7F8FD1)
     static let uiPass = uiColor(light: 0xD9822B, dark: 0xF0A04B)

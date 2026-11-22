@@ -35,16 +35,21 @@ struct SettingsView: View {
                             }
                             .font(.subheadline.weight(.semibold))
                             .frame(maxWidth: .infinity, minHeight: 36)
-                            .foregroundStyle(selected ? Color.white : Theme.text)
+                            .foregroundStyle(selected ? Theme.onFocus : Theme.text)
                             .background(Capsule().fill(selected ? Theme.focus : Theme.secondaryText.opacity(0.12)))
                             .buttonStyle(.borderless)
                             .accessibilityAddTraits(selected ? .isSelected : [])
                         }
                     }
-                    Stepper(value: Binding(get: { model.dailyGoalMinutes },
-                                           set: { model.setDailyGoal(minutes: $0) }),
-                            in: 15...600, step: 15) {
-                        LabeledContent("Custom", value: Formatting.duration(TimeInterval(model.dailyGoalMinutes * 60)))
+                    Menu {
+                        Picker("Custom goal", selection: Binding(get: { model.dailyGoalMinutes },
+                                                                 set: { model.setDailyGoal(minutes: $0) })) {
+                            ForEach(Array(stride(from: 30, through: 600, by: 15)), id: \.self) { minutes in
+                                Text(Formatting.duration(TimeInterval(minutes * 60))).tag(minutes)
+                            }
+                        }
+                    } label: {
+                        LabeledContent("Custom…", value: Formatting.duration(TimeInterval(model.dailyGoalMinutes * 60)))
                     }
                 } header: {
                     Text("Daily focus goal")
@@ -137,7 +142,7 @@ struct ShortcutGuideSheet: View {
                         HStack(alignment: .top, spacing: 14) {
                             Text("\(index + 1)")
                                 .font(.headline.monospacedDigit())
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Theme.onFocus)
                                 .frame(width: 28, height: 28)
                                 .background(Circle().fill(Theme.focus))
                             Label(step.1, systemImage: step.0)

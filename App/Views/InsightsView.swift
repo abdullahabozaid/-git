@@ -2,77 +2,57 @@ import Charts
 import DeviceActivity
 import SwiftUI
 
-/// Your own data (focus, streaks, passes, mornings) plus Apple's Screen Time report.
+/// Motivating, never shaming: what went well first, honest detail after.
 struct InsightsView: View {
     @EnvironmentObject private var model: AppModel
-    @State private var range: Range = .week
     @State private var current: StatsSummary?
-    @State private var previous: TimeInterval = 0
-    @State private var calendar28: [DayStats] = []
-
-    enum Range: String, CaseIterable, Identifiable {
-        case week, month
-        var id: String { rawValue }
-        var days: Int { self == .week ? 7 : 30 }
-        var label: String { self == .week ? "This week" : "30 days" }
-    }
+    @State private var previousWeek: TimeInterval = 0
+    @State private var month: StatsSummary?
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    Picker("Range", selection: $range) {
-                        ForEach(Range.allCases) { Text($0.label).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-
-                    if let current {
-                        HeroCard(summary: current, previous: previous, range: range)
-                        StreakCalendarCard(days: calendar28, summary: current)
-                        FocusChartCard(summary: current)
-                        PassesCard(summary: current)
-                        MorningsCard(summary: current)
-                        if let tip = suggestion(current) {
+                    if let current, let month {
+                        WeekCard(summary: current, previousWeek: previousWeek)
+                        if let tip = suggestion(month) {
                             TipCard(text: tip)
                         }
+                        RhythmCard(month: month)
+                        FocusChartCard(summary: month)
+                        PassesCard(summary: month)
+                        MorningsCard(summary: current)
                     }
-
-                    ScreenTimeCard(days: range.days)
+                    ScreenTimeCard()
                 }
                 .padding()
             }
             .background(Theme.background)
             .navigationTitle("Insights")
             .onAppear(perform: reload)
-            .onChange(of: range) { _, _ in reload() }
         }
     }
 
     private func reload() {
-        let both = model.stats(days: range.days * 2)
-        previous = both.days.prefix(range.days).reduce(0) { $0 + $1.focusSeconds }
-        current = model.stats(days: range.days)
-        calendar28 = model.stats(days: 28).days
+        let twoWeeks = model.stats(days: 14)
+        previousWeek = twoWeeks.days.prefix(7).reduce(0) { $0 + $1.focusSeconds }
+        current = model.stats(days: 7)
+        month = model.stats(days: 28)
     }
 
-    /// One gentle, data-based suggestion.
+    /// One specific, positive suggestion from your own data.
     private func suggestion(_ summary: StatsSummary) -> String? {
-        if summary.totalPasses >= 3, let peak = summary.passHours.max(by: { $0.value < $1.value })?.key {
+        if summary.changedMind >= 2 {
+            return "You paused and changed your mind \(summary.changedMind) times this month. That's the habit forming."
+        }
+        if summary.totalPasses >= 4, let peak = summary.passHours.max(by: { $0.value < $1.value })?.key {
             let start = Calendar.current.date(bySettingHour: peak, minute: 0, second: 0, of: Date()) ?? Date()
-            let end = start.addingTimeInterval(3600)
-            return "Most of your passes happen around \(start.formatted(.dateTime.hour())) – \(end.formatted(.dateTime.hour())). A short walk or a glass of water then might help."
+            return "Passes cluster around \(start.formatted(.dateTime.hour())). A short walk then might help."
         }
-        let late = summary.days.compactMap(\.minutesFromAlarm).filter { $0 > 10 }
-        if late.count >= 2 {
-            return "Some mornings you reach your desk a while after the alarm. Try leaving your phone on the desk overnight."
+        if let best = summary.days.max(by: { $0.focusSeconds < $1.focusSeconds }), best.focusSeconds > 0 {
+            return "Your best day was \(best.day.formatted(.dateTime.weekday(.wide))): \(Formatting.duration(best.focusSeconds))."
         }
-        if summary.currentStreak >= 3 {
-            return "\(summary.currentStreak) days in a row. Keep it gentle and steady."
-        }
-        if summary.totalFocus == 0 {
-            return "Tap your desk tag when you sit down to work. Your first session will show up here."
-        }
-        return nil
+        return summary.totalFocus == 0 ? "Tap your desk tag when you sit down to work. Your first session will appear here." : nil
     }
 }
 
@@ -85,99 +65,148 @@ struct InsightCard<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             Label(title, systemImage: symbol)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(tint)
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Theme.surface))
+        .padding(18)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.surface))
     }
 }
 
-private struct HeroCard: View {
+/// Seven daily rings (filled toward the goal) and the week's total.
+private struct WeekCard: View {
     let summary: StatsSummary
-    let previous: TimeInterval
-    let range: InsightsView.Range
+    let previousWeek: TimeInterval
+
+    @ScaledMetric(relativeTo: .largeTitle) private var totalSize: CGFloat = 40
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(range == .week ? "Focus this week" : "Focus in 30 days")
+        let goal = TimeInterval(summary.goalMinutes * 60)
+        let daysOnGoal = summary.days.filter { $0.focusSeconds >= goal }.count
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Last 7 days")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.85))
-            Text(Formatting.duration(summary.totalFocus))
-                .font(.system(size: 44, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .contentTransition(.numericText())
-            if previous > 0 {
-                let delta = summary.totalFocus - previous
-                Label("\(delta >= 0 ? "+" : "−")\(Formatting.duration(abs(delta))) vs previous \(range == .week ? "week" : "30 days")",
-                      systemImage: delta >= 0 ? "arrow.up.right" : "arrow.down.right")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.85))
+                .foregroundStyle(Theme.secondaryText)
+
+            HStack(spacing: 0) {
+                ForEach(summary.days) { day in
+                    VStack(spacing: 6) {
+                        DayRing(progress: goal > 0 ? min(1, day.focusSeconds / goal) : 0,
+                                reached: day.focusSeconds >= goal && goal > 0,
+                                isToday: Calendar.current.isDateInToday(day.day))
+                            .frame(width: 34, height: 34)
+                        Text(day.day.formatted(.dateTime.weekday(.narrow)))
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Theme.secondaryText)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(day.day.formatted(.dateTime.weekday(.wide))): \(Formatting.duration(day.focusSeconds))")
+                }
             }
-            HStack(spacing: 18) {
-                heroStat("\(summary.days.reduce(0) { $0 + $1.sessions })", "sessions")
-                heroStat(Formatting.duration(summary.longestSession), "longest")
-                heroStat("\(summary.currentStreak)", "day streak")
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(Formatting.duration(summary.totalFocus))
+                    .font(.system(size: min(totalSize, 60), weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                Text(caption(daysOnGoal: daysOnGoal))
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.secondaryText)
             }
-            .padding(.top, 6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(LinearGradient(colors: [Theme.focus, Theme.focus.opacity(0.75)], startPoint: .topLeading, endPoint: .bottomTrailing))
-        )
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Theme.surface))
     }
 
-    private func heroStat(_ value: String, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(value).font(.headline.monospacedDigit()).foregroundStyle(.white)
-            Text(label).font(.caption).foregroundStyle(.white.opacity(0.75))
+    /// Only ever good news or neutral; never a negative delta.
+    private func caption(daysOnGoal: Int) -> String {
+        let goalPart = "\(daysOnGoal) of 7 days on goal"
+        let delta = summary.totalFocus - previousWeek
+        if previousWeek > 0, delta >= 15 * 60 {
+            return "\(goalPart) · \(Formatting.duration(delta)) more than the week before"
+        }
+        return summary.totalFocus > 0 ? "\(goalPart) · steady" : "Your week starts at your desk"
+    }
+}
+
+private struct DayRing: View {
+    let progress: Double
+    let reached: Bool
+    let isToday: Bool
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(Theme.focus.opacity(0.14), lineWidth: 5)
+            Circle()
+                .trim(from: 0, to: max(0.001, progress))
+                .stroke(reached ? Theme.gold : Theme.focus, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            if isToday {
+                Circle().fill(Theme.text.opacity(0.7)).frame(width: 4, height: 4)
+            }
         }
     }
 }
 
-/// 4-week grid: filled = goal met, ring = some focus, gold dot = grace day.
-private struct StreakCalendarCard: View {
-    let days: [DayStats]
-    let summary: StatsSummary
+/// "Rhythm": days on goal in the last 4 weeks, with a weekday-labelled grid.
+private struct RhythmCard: View {
+    let month: StatsSummary
 
     var body: some View {
-        InsightCard(title: "Streak", symbol: "flame.fill", tint: Theme.gold) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("\(summary.currentStreak)")
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
-                Text(summary.currentStreak == 1 ? "day" : "days").foregroundStyle(Theme.secondaryText)
+        let goal = TimeInterval(month.goalMinutes * 60)
+        let met = month.days.filter { $0.focusSeconds >= goal }.count
+        let calendar = Calendar.current
+        // Align the grid so columns are weekdays.
+        let firstWeekday = calendar.component(.weekday, from: month.days.first?.day ?? Date())
+        let leading = (firstWeekday - calendar.firstWeekday + 7) % 7
+        let symbols = (0..<7).map { calendar.veryShortWeekdaySymbols[(calendar.firstWeekday - 1 + $0) % 7] }
+
+        InsightCard(title: "Rhythm", symbol: "leaf.fill", tint: Theme.focus) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("\(met)")
+                    .font(.system(.largeTitle, design: .rounded).weight(.bold))
+                Text("of \(month.days.count) days on goal")
+                    .foregroundStyle(Theme.secondaryText)
                 Spacer()
-                Text("Best \(summary.bestStreak)").font(.subheadline.weight(.medium)).foregroundStyle(Theme.secondaryText)
+                if month.currentStreak >= 2 {
+                    Label("\(month.currentStreak) in a row", systemImage: "flame.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.gold)
+                }
             }
-            let goal = TimeInterval(summary.goalMinutes * 60)
-            let grace = Set(summary.days.filter(\.isGraceDay).map(\.day))
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7), spacing: 8) {
-                ForEach(days) { day in
-                    let isToday = Calendar.current.isDateInToday(day.day)
+                ForEach(Array(symbols.enumerated()), id: \.offset) { _, symbol in
+                    Text(symbol)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Theme.secondaryText)
+                }
+                ForEach(0..<leading, id: \.self) { _ in Color.clear.frame(height: 26) }
+                ForEach(month.days) { day in
                     ZStack {
                         if day.focusSeconds >= goal {
                             Circle().fill(Theme.focus)
                         } else if day.focusSeconds > 0 {
-                            Circle().stroke(Theme.focus, lineWidth: 2)
+                            Circle().stroke(Theme.focus.opacity(0.6), lineWidth: 2)
                         } else {
-                            Circle().fill(Theme.secondaryText.opacity(0.12))
+                            Circle().fill(Theme.secondaryText.opacity(0.10))
                         }
-                        if grace.contains(day.day) {
+                        if day.isGraceDay {
                             Circle().fill(Theme.gold).frame(width: 7, height: 7)
                         }
                     }
-                    .frame(height: 28)
-                    .overlay(Circle().stroke(Theme.text.opacity(isToday ? 0.6 : 0), lineWidth: 1.5).padding(-3))
+                    .frame(height: 26)
+                    .overlay(Circle().stroke(Theme.text.opacity(calendar.isDateInToday(day.day) ? 0.55 : 0), lineWidth: 1.5).padding(-3))
                     .accessibilityLabel("\(day.day.formatted(date: .abbreviated, time: .omitted)): \(Formatting.duration(day.focusSeconds))")
                 }
             }
-            Text("A day counts when you focus for \(Formatting.duration(goal)). One missed day a week is forgiven (gold dot).")
+            Text("Filled: \(Formatting.duration(goal)) or more. Gold dot: a missed day that's forgiven (one a week).")
                 .font(.caption)
                 .foregroundStyle(Theme.secondaryText)
         }
@@ -195,15 +224,20 @@ private struct FocusChartCard: View {
                         x: .value("Day", day.day, unit: .day),
                         y: .value("Hours", day.focusSeconds / 3600)
                     )
-                    .foregroundStyle(day.focusSeconds >= Double(summary.goalMinutes * 60) ? Theme.focus : Theme.focus.opacity(0.4))
-                    .cornerRadius(4)
+                    .foregroundStyle(day.focusSeconds >= Double(summary.goalMinutes * 60) ? Theme.focus : Theme.focus.opacity(0.35))
+                    .cornerRadius(3)
                 }
                 RuleMark(y: .value("Goal", Double(summary.goalMinutes) / 60))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
                     .foregroundStyle(Theme.gold)
-                    .annotation(position: .top, alignment: .trailing) {
+                    .annotation(position: .top, alignment: .leading) {
                         Text("goal").font(.caption2).foregroundStyle(Theme.gold)
                     }
+            }
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .day, count: 7)) { _ in
+                    AxisValueLabel(format: .dateTime.day().month(.abbreviated))
+                }
             }
             .chartYAxis {
                 AxisMarks { value in
@@ -216,80 +250,79 @@ private struct FocusChartCard: View {
     }
 }
 
+/// Leads with the good news: times you changed your mind.
 private struct PassesCard: View {
     let summary: StatsSummary
 
     var body: some View {
-        let backToBack = summary.days.reduce(0) { $0 + $1.backToBackPasses }
-        let withoutTag = summary.days.reduce(0) { $0 + $1.endedWithoutTag }
-        InsightCard(title: "Passes", symbol: "hourglass", tint: Theme.pass) {
-            HStack(spacing: 24) {
-                number("\(summary.totalPasses)", "taken", Theme.text)
-                number("\(backToBack)", "back-to-back", backToBack > 0 ? Theme.passText : Theme.text)
-                number("\(withoutTag)", "ended without tag", Theme.text)
-            }
+        InsightCard(title: "Passes", symbol: "hourglass", tint: Theme.passText) {
             if summary.changedMind > 0 {
-                Label("You changed your mind \(summary.changedMind) time\(summary.changedMind == 1 ? "" : "s"). That's the breathing pause working.",
-                      systemImage: "leaf.fill")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Theme.focus)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("\(summary.changedMind)")
+                        .font(.system(.largeTitle, design: .rounded).weight(.bold))
+                        .foregroundStyle(Theme.focus)
+                    Text(summary.changedMind == 1 ? "time you changed your mind" : "times you changed your mind")
+                        .foregroundStyle(Theme.secondaryText)
+                }
             }
+            let backToBack = summary.days.reduce(0) { $0 + $1.backToBackPasses }
+            Text("\(summary.totalPasses) pass\(summary.totalPasses == 1 ? "" : "es") taken\(backToBack > 0 ? " · \(backToBack) close together" : "")")
+                .font(.subheadline)
+                .foregroundStyle(Theme.secondaryText)
+
             let sorted = summary.intentions.sorted { $0.value > $1.value }
+            let total = max(1, sorted.reduce(0) { $0 + $1.value })
             if !sorted.isEmpty {
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     ForEach(sorted, id: \.key) { key, count in
                         let intention = PassIntention(rawValue: key)
-                        HStack {
-                            Label(intention?.label ?? "Not specified", systemImage: intention?.symbol ?? "questionmark.circle")
-                                .font(.subheadline)
-                            Spacer()
-                            Text("\(count)").font(.subheadline.monospacedDigit().weight(.semibold))
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Label(intention?.label ?? "No reason given", systemImage: intention?.symbol ?? "questionmark.circle")
+                                    .font(.subheadline)
+                                Spacer()
+                                Text("\(count)").font(.subheadline.monospacedDigit()).foregroundStyle(Theme.secondaryText)
+                            }
+                            GeometryReader { proxy in
+                                Capsule().fill(Theme.pass.opacity(0.5))
+                                    .frame(width: max(6, proxy.size.width * Double(count) / Double(total)))
+                            }
+                            .frame(height: 5)
                         }
                     }
                 }
-                .padding(.top, 4)
             }
-        }
-    }
-
-    private func number(_ value: String, _ label: String, _ color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(value).font(.title2.bold().monospacedDigit()).foregroundStyle(color)
-            Text(label).font(.caption).foregroundStyle(Theme.secondaryText)
         }
     }
 }
 
+/// Check-ins as positive stamps. Never "late".
 private struct MorningsCard: View {
     let summary: StatsSummary
 
     var body: some View {
         InsightCard(title: "Mornings", symbol: "sunrise.fill", tint: Theme.gold) {
-            let week = summary.days.suffix(7)
-            HStack(spacing: 6) {
-                ForEach(Array(week)) { day in
+            HStack(spacing: 4) {
+                ForEach(summary.days) { day in
                     VStack(spacing: 6) {
                         Text(day.day.formatted(.dateTime.weekday(.narrow)))
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(Theme.secondaryText)
                         ZStack {
-                            Circle().fill(day.checkIn != nil ? Theme.gold : Theme.secondaryText.opacity(0.12))
+                            Circle().fill(day.checkIn != nil ? Theme.gold : Theme.secondaryText.opacity(0.10))
                             if day.checkIn != nil {
-                                Image(systemName: "checkmark").font(.caption2.bold()).foregroundStyle(.white)
+                                Image(systemName: "sun.max.fill").font(.caption2).foregroundStyle(Theme.onGold)
                             }
                         }
                         .frame(width: 30, height: 30)
                         Text(day.checkIn?.formatted(.dateTime.hour().minute()) ?? " ")
                             .font(.caption2.monospacedDigit())
                             .foregroundStyle(Theme.secondaryText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
                     .frame(maxWidth: .infinity)
                 }
-            }
-            if summary.snoozes > 0 {
-                Text("Alarm stopped \(summary.snoozes) time\(summary.snoozes == 1 ? "" : "s") before reaching your desk.")
-                    .font(.footnote)
-                    .foregroundStyle(Theme.secondaryText)
             }
             if summary.checkIns == 0 {
                 Text("Turn on the wake alarm in Rules. Each morning you tap your desk tag shows up here.")
@@ -305,7 +338,7 @@ private struct TipCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "lightbulb.fill")
+            Image(systemName: "sparkles")
                 .foregroundStyle(Theme.gold)
             Text(text)
                 .font(.subheadline)
@@ -318,12 +351,10 @@ private struct TipCard: View {
 }
 
 private struct ScreenTimeCard: View {
-    let days: Int
-
     private var filter: DeviceActivityFilter {
         let calendar = Calendar.current
         let end = Date()
-        let start = calendar.date(byAdding: .day, value: -(days - 1), to: calendar.startOfDay(for: end)) ?? end
+        let start = calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: end)) ?? end
         return DeviceActivityFilter(
             segment: .daily(during: DateInterval(start: start, end: end)),
             users: .all,
@@ -336,14 +367,14 @@ private struct ScreenTimeCard: View {
             Label("Screen Time", systemImage: "iphone")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Theme.secondaryText)
-                .padding([.top, .horizontal], 16)
+                .padding([.top, .horizontal], 18)
             DeviceActivityReport(.screenTime, filter: filter)
                 .frame(minHeight: 520)
             Text("Shown privately by iOS. Tawfeeq can't read or share these numbers.")
                 .font(.caption2)
                 .foregroundStyle(Theme.secondaryText)
-                .padding([.bottom, .horizontal], 16)
+                .padding([.bottom, .horizontal], 18)
         }
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Theme.surface))
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.surface))
     }
 }

@@ -36,7 +36,7 @@ struct RulesView: View {
 
                 Section("Passes") {
                     RuleRow(symbol: "hourglass", tint: Theme.pass, title: "5-minute passes",
-                            detail: "Unlimited · breathing wait 5 s → 15 s → 30 s · logged")
+                            detail: "Unlimited · a short breath first")
                 }
 
                 Section("Night & morning") {

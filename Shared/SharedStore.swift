@@ -20,6 +20,7 @@ final class SharedStore {
         static let hapticsEnabled = "hapticsEnabled"
         static let shieldPassRequestedAt = "shieldPassRequestedAt"
         static let travelUntil = "travelUntil"
+        static let passIntention = "passIntention"
     }
 
     private let defaults: UserDefaults
@@ -93,6 +94,12 @@ final class SharedStore {
     var shieldPassRequestedAt: Date? {
         get { defaults.object(forKey: Key.shieldPassRequestedAt) as? Date }
         set { defaults.set(newValue, forKey: Key.shieldPassRequestedAt) }
+    }
+
+    /// Reason chosen for the running pass (shown on Home so the pass stays tied to its intention).
+    var passIntention: String? {
+        get { defaults.string(forKey: Key.passIntention) }
+        set { defaults.set(newValue, forKey: Key.passIntention) }
     }
 
     /// Travel mode: night lock and wake alarm are paused until this date.

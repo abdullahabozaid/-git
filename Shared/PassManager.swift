@@ -53,6 +53,7 @@ enum PassManager {
         }
 
         store.passExpiresAt = expiresAt
+        store.passIntention = intention?.rawValue
         store.shieldPassRequestedAt = nil
         Blocker().liftShields()
         PassNotifications.schedule(expiresAt: expiresAt, now: now)

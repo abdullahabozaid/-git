@@ -6,7 +6,7 @@ struct MiniPlayer: View {
     @Environment(\.tabViewBottomAccessoryPlacement) private var placement
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
+        TimelineView(.everyMinute) { context in
             let state = model.homeState(now: context.date)
             HStack(spacing: 10) {
                 Image(systemName: symbol(state))
@@ -24,12 +24,15 @@ struct MiniPlayer: View {
                     }
                 }
                 Spacer(minLength: 4)
-                if let timer = timer(state, now: context.date) {
-                    Text(timer)
-                        .font(.subheadline.monospacedDigit().weight(.semibold))
-                        .contentTransition(.numericText())
-                        .foregroundStyle(state.tint)
+                Group {
+                    if case .pass(let end) = state {
+                        Text(timerInterval: context.date...max(context.date, end), countsDown: true)
+                    } else if let timer = timer(state, now: context.date) {
+                        Text(timer)
+                    }
                 }
+                .font(.subheadline.monospacedDigit().weight(.semibold))
+                .foregroundStyle(state.tint)
             }
             .padding(.horizontal, 16)
         }
@@ -57,7 +60,7 @@ struct MiniPlayer: View {
         case .idle: model.nextEventDescription ?? "Tap your desk tag to begin"
         case .focusing: "Tap your desk tag to finish"
         case .pass: "Apps lock again soon"
-        case .night: "Until your morning check-in"
+        case .night: "Unlocks with your desk tag"
         case .morning: "Tap your desk tag to check in"
         }
     }
@@ -65,8 +68,31 @@ struct MiniPlayer: View {
     private func timer(_ state: HomeState, now: Date) -> String? {
         switch state {
         case .idle, .morning: nil
-        case .focusing(let start), .night(let start): Formatting.clock(now.timeIntervalSince(start))
-        case .pass(let end): Formatting.clock(max(0, end.timeIntervalSince(now)))
+        case .focusing(let start): Formatting.duration(now.timeIntervalSince(start))
+        case .night, .pass: nil
+        }
+    }
+}
+
+/// Shows the mini-player only off the Focus tab and only while something is happening.
+struct MiniPlayerAccessory: ViewModifier {
+    let show: Bool
+    let open: () -> Void
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.1, *) {
+            content.tabViewBottomAccessory(isEnabled: show) {
+                Button(action: open) { MiniPlayer() }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens Focus")
+            }
+        } else if show {
+            content.tabViewBottomAccessory {
+                Button(action: open) { MiniPlayer() }
+                    .buttonStyle(.plain)
+            }
+        } else {
+            content
         }
     }
 }

@@ -1,38 +1,49 @@
 import FamilyControls
 import SwiftUI
 
-/// Home. Changes completely by state: idle, focusing, pass, night lock, morning check-in.
+/// Home. Every state is built the same way: one sentence, one dial, one quiet line, one action.
+/// The dial is today's progress toward your goal, and it's also the button: tap it to scan.
 struct FocusView: View {
     @EnvironmentObject private var model: AppModel
     @State private var showPassSheet = false
     @State private var showBlockPicker = false
+    @State private var showNoTag = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Re-checks state every few seconds while visible: picks up passes started from the
-    /// block screen and re-blocks promptly if a pass expired but the extension didn't fire.
+    /// Picks up passes started from the block screen and re-blocks if an extension callback was missed.
     private let ticker = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
+        // Minute-level updates: calm, no ticking seconds. The pass countdown is rendered by the system.
+        TimelineView(.everyMinute) { context in
             let state = model.homeState(now: context.date)
-            ZStack {
-                StateBackground(state: state)
-                    .ignoresSafeArea()
+            GeometryReader { proxy in
+                ZStack {
+                    StateBackground(state: state, reduceMotion: reduceMotion)
+                        .ignoresSafeArea()
 
-                VStack(spacing: 24) {
-                    header(state)
-                    Spacer(minLength: 8)
-                    StateDial(state: state, now: context.date, wakeTime: model.routine.wakeTime)
-                    Spacer(minLength: 8)
-                    TodayStrip(now: context.date)
-                    nextEvent(state)
-                    actions(state)
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            header(state)
+                                .padding(.top, 12)
+                            Spacer(minLength: 28)
+                            FocusDial(state: state, now: context.date) {
+                                Task { await model.scanToToggle() }
+                            }
+                            Spacer(minLength: 20)
+                            contextLine(state, now: context.date)
+                            Spacer(minLength: 24)
+                            actions(state)
+                                .padding(.bottom, 24)
+                        }
+                        .padding(.horizontal, 24)
+                        .frame(minHeight: proxy.size.height)
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 12)
-                .padding(.bottom, 20)
             }
-            .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(duration: 0.6), value: state.kind)
+            .modifier(NightScheme(isNight: state.isDark))
+            .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(duration: 0.7), value: state.kind)
         }
         .onReceive(ticker) { _ in model.reconcile() }
         .onAppear { if model.demoShowPassSheet { showPassSheet = true } }
@@ -56,73 +67,288 @@ struct FocusView: View {
         .sensoryFeedback(.warning, trigger: model.warningTick) { _, _ in model.hapticsEnabled }
     }
 
-    // MARK: - Pieces
+    // MARK: - One sentence
 
     private func header(_ state: HomeState) -> some View {
-        VStack(spacing: 4) {
-            Text(state.title)
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(state.isDark ? Color.white : Theme.text)
-            Text(state.subtitle(appCount: model.blockedSummary))
-                .font(.subheadline)
-                .foregroundStyle(state.isDark ? Color.white.opacity(0.7) : Theme.secondaryText)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    @ViewBuilder
-    private func nextEvent(_ state: HomeState) -> some View {
-        if let next = model.nextEventDescription, state == .idle {
-            Label(next, systemImage: "clock")
-                .font(.footnote)
+        VStack(spacing: 6) {
+            Text(title(state))
+                .font(.largeTitle.weight(.bold))
+                .fontDesign(.rounded)
+                .foregroundStyle(Theme.text)
+            Text(subtitle(state))
+                .font(.body)
                 .foregroundStyle(Theme.secondaryText)
         }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
+
+    private func title(_ state: HomeState) -> String {
+        switch state.kind {
+        case .idle: "Ready when you are"
+        case .focusing: "Focusing"
+        case .pass: "Quick pass"
+        case .night: "Resting"
+        case .morning: "Good morning"
+        }
+    }
+
+    private func subtitle(_ state: HomeState) -> String {
+        switch state.kind {
+        case .idle: model.hasHistory ? "Your desk is the key." : "Your first session starts at your desk."
+        case .focusing: "\(model.blockedSummary) resting."
+        case .pass: "Apps rest again when the ring runs out."
+        case .night: "Your phone is resting for the night."
+        case .morning: "Your desk is waiting."
+        }
+    }
+
+    // MARK: - One quiet line
+
+    @ViewBuilder
+    private func contextLine(_ state: HomeState, now: Date) -> some View {
+        let line: (String, String)? = switch state {
+        case .idle:
+            contextForIdle()
+        case .focusing:
+            ("wave.3.right", "Tap your desk tag to finish")
+        case .pass:
+            model.currentPassIntention.map { ($0.symbol, "\($0.label) · pass #\(max(1, model.todayStats(now: now).passes)) today") }
+                ?? ("hourglass", "Pass #\(max(1, model.todayStats(now: now).passes)) today")
+        case .night:
+            model.routine.wakeEnabled
+                ? ("alarm", "Alarm at \(RoutineView.format(model.routine.wakeTime)) · passes still work")
+                : ("moon.zzz", "Passes still work if you need one")
+        case .morning:
+            model.session.map { ("bed.double", "Your phone rested \(Formatting.duration(now.timeIntervalSince($0.startedAt)))") }
+        }
+        if let line {
+            Label(line.1, systemImage: line.0)
+                .font(.subheadline)
+                .foregroundStyle(Theme.secondaryText)
+                .multilineTextAlignment(.center)
+        }
+    }
+
+    private func contextForIdle() -> (String, String)? {
+        var parts: [String] = []
+        if let next = model.nextEventDescription { parts.append(next) }
+        if model.hasHistory {
+            let rhythm = model.rhythm
+            parts.append("\(rhythm.met) of \(rhythm.of) days")
+        }
+        return parts.isEmpty ? nil : ("clock", parts.joined(separator: " · "))
+    }
+
+    // MARK: - One action
 
     @ViewBuilder
     private func actions(_ state: HomeState) -> some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
             switch state {
             case .idle:
                 if !model.canStartSession {
-                    // Prevent the error instead of reporting it at start time.
-                    SetupButton(title: "Choose apps to block", symbol: "apps.iphone") { showBlockPicker = true }
+                    WideButton(title: "Choose apps to rest", symbol: "apps.iphone", fill: Theme.focus, text: Theme.onFocus) {
+                        showBlockPicker = true
+                    }
                 } else if model.tags.isEmpty {
-                    SetupButton(title: "Add your desk tag", symbol: "wave.3.right") {
+                    WideButton(title: "Add your desk tag", symbol: "wave.3.right", fill: Theme.focus, text: Theme.onFocus) {
                         Task { await model.enrollTag(name: "Desk", role: .desk) }
                     }
-                } else {
-                    ScanButton(title: "Scan desk tag to begin", tint: Theme.focus)
-                }
-                if model.canStartSession {
+                } else if showNoTag {
                     HoldToStartButton()
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                } else {
+                    Button("No tag nearby?") { withAnimation(.snappy) { showNoTag = true } }
+                        .font(.footnote)
+                        .foregroundStyle(Theme.secondaryText)
                 }
             case .focusing:
-                ScanButton(title: "Scan desk tag to finish", tint: Theme.focus)
-                Button("Take a 5-minute pass") { showPassSheet = true }
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Theme.secondaryText)
+                SoftButton(title: "Take a pass", symbol: "hourglass", tint: Theme.passText) { showPassSheet = true }
             case .pass:
-                Button {
+                WideButton(title: "Back to focus", symbol: "arrow.uturn.backward", fill: Theme.pass, text: Theme.onPass) {
                     model.endPassEarly()
-                } label: {
-                    Label("Return now", systemImage: "arrow.uturn.backward")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.pass)
-                .controlSize(.large)
             case .night:
-                ScanButton(title: "Scan desk tag to unlock", tint: Theme.night)
-                Button("Take a 5-minute pass") { showPassSheet = true }
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.7))
+                Button("Need a pass?") { showPassSheet = true }
+                    .font(.footnote)
+                    .foregroundStyle(Theme.secondaryText)
             case .morning:
-                ScanButton(title: "Scan desk tag to check in", tint: Theme.gold)
+                EmptyView()
             }
+        }
+        .onChange(of: state.kind) { _, _ in showNoTag = false }
+    }
+}
+
+// MARK: - The dial
+
+/// Today's progress toward the goal, as a ring. Tapping it scans the desk tag.
+private struct FocusDial: View {
+    @EnvironmentObject private var model: AppModel
+    let state: HomeState
+    let now: Date
+    let scan: () -> Void
+
+    @ScaledMetric(relativeTo: .largeTitle) private var size: CGFloat = 272
+    @ScaledMetric(relativeTo: .largeTitle) private var numberSize: CGFloat = 64
+
+    var body: some View {
+        let today = model.todayStats(now: now).focusSeconds
+        let goal = TimeInterval(model.dailyGoalMinutes * 60)
+        let progress = goal > 0 ? min(1, today / goal) : 0
+        let reached = today >= goal && goal > 0
+        let diameter = min(max(size, 230), 320)
+
+        Button(action: scan) {
+            ZStack {
+                Circle()
+                    .fill(state.tint.opacity(state.isDark ? 0.12 : 0.08))
+                Circle()
+                    .stroke(state.tint.opacity(0.14), lineWidth: 14)
+
+                ring(progress: progress, reached: reached)
+
+                center(today: today, goal: goal, reached: reached)
+                    .padding(36)
+            }
+            .frame(width: diameter, height: diameter)
+            .contentShape(Circle())
+        }
+        .buttonStyle(DialPressStyle())
+        .disabled(state.kind == .pass)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText(today: today, goal: goal))
+        .accessibilityHint(state.kind == .pass ? "" : "Double-tap to scan your desk tag.")
+        .sensoryFeedback(.success, trigger: reached) { old, new in !old && new && model.hapticsEnabled }
+    }
+
+    @ViewBuilder
+    private func ring(progress: Double, reached: Bool) -> some View {
+        switch state {
+        case .pass(let endsAt):
+            // Drains smoothly, once a second.
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let remaining = max(0, endsAt.timeIntervalSince(context.date)) / PassManager.duration
+                Circle()
+                    .trim(from: 0, to: remaining)
+                    .stroke(Theme.pass, style: StrokeStyle(lineWidth: 14, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.linear(duration: 1), value: remaining)
+            }
+        case .night, .morning:
+            EmptyView()
+        case .idle, .focusing:
+            if model.hasHistory || state.kind == .focusing {
+                Circle()
+                    .trim(from: 0, to: max(0.001, progress))
+                    .stroke(reached ? Theme.gold : Theme.focus, style: StrokeStyle(lineWidth: 14, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.spring(duration: 0.8), value: progress)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func center(today: TimeInterval, goal: TimeInterval, reached: Bool) -> some View {
+        VStack(spacing: 6) {
+            switch state {
+            case .idle:
+                Image(systemName: "wave.3.right")
+                    .font(.system(size: 44, weight: .semibold))
+                    .foregroundStyle(Theme.focus)
+                Text("Tap to scan")
+                    .font(.headline)
+                    .foregroundStyle(Theme.text)
+                if model.hasHistory {
+                    Text("\(Formatting.duration(today)) of \(Formatting.duration(goal)) today")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.secondaryText)
+                }
+            case .focusing(let startedAt):
+                let minutes = Int(now.timeIntervalSince(startedAt) / 60)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(minutes >= 60 ? "\(minutes / 60):\(String(format: "%02d", minutes % 60))" : "\(minutes)")
+                        .font(.system(size: min(numberSize, 88), weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                    Text(minutes >= 60 ? "h" : "min")
+                        .font(.title3.weight(.medium))
+                        .foregroundStyle(Theme.secondaryText)
+                }
+                .foregroundStyle(Theme.text)
+                Text(reached ? "Today's goal reached" : "\(Formatting.duration(today)) of \(Formatting.duration(goal)) today")
+                    .font(.footnote.weight(reached ? .semibold : .regular))
+                    .foregroundStyle(reached ? Theme.gold : Theme.secondaryText)
+            case .pass(let endsAt):
+                Text(timerInterval: now...max(now, endsAt), countsDown: true)
+                    .font(.system(size: min(numberSize, 88), weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Theme.text)
+                Text("left")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.secondaryText)
+            case .night:
+                Image(systemName: "moon.stars.fill")
+                    .font(.system(size: 44, weight: .semibold))
+                    .foregroundStyle(Theme.night)
+                Text("Unlocks at \(RoutineView.format(model.routine.wakeTime))")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Theme.text)
+                Text("with your desk tag")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.secondaryText)
+            case .morning:
+                Image(systemName: "sunrise.fill")
+                    .font(.system(size: 48, weight: .semibold))
+                    .foregroundStyle(Theme.gold)
+                    .symbolEffect(.breathe)
+                Text("Tap to check in")
+                    .font(.headline)
+                    .foregroundStyle(Theme.text)
+            }
+        }
+        .multilineTextAlignment(.center)
+        .minimumScaleFactor(0.7)
+    }
+
+    private func accessibilityText(today: TimeInterval, goal: TimeInterval) -> String {
+        func spoken(_ seconds: TimeInterval) -> String {
+            Duration.seconds(max(60, seconds)).formatted(.units(allowed: [.hours, .minutes], width: .wide))
+        }
+        let progress = "\(spoken(today)) of your \(spoken(goal)) goal today."
+        switch state {
+        case .idle: return "Ready. \(progress)"
+        case .focusing(let start): return "Focusing for \(spoken(now.timeIntervalSince(start))). \(progress)"
+        case .pass(let end): return "On a pass. \(spoken(end.timeIntervalSince(now))) left."
+        case .night: return "Resting. Unlocks at \(RoutineView.format(model.routine.wakeTime)) with your desk tag."
+        case .morning: return "Good morning. Scan your desk tag to check in."
+        }
+    }
+}
+
+private struct DialPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.spring(duration: 0.25), value: configuration.isPressed)
+    }
+}
+
+/// Night lock: the whole Focus screen (and its controls) render dark.
+private struct NightScheme: ViewModifier {
+    let isNight: Bool
+
+    func body(content: Content) -> some View {
+        if isNight {
+            content
+                .environment(\.colorScheme, .dark)
+                .toolbarColorScheme(.dark, for: .tabBar)
+        } else {
+            content
         }
     }
 }
@@ -153,244 +379,93 @@ extension HomeState {
         }
     }
 
+    /// Used by the mini-player.
     var title: String {
         switch kind {
-        case .idle: "Ready when you are"
+        case .idle: "Ready"
         case .focusing: "Focusing"
-        case .pass: "On a pass"
-        case .night: "Night lock"
+        case .pass: "Quick pass"
+        case .night: "Resting"
         case .morning: "Good morning"
         }
     }
-
-    func subtitle(appCount: String) -> String {
-        switch kind {
-        case .idle: "Tap your desk tag to begin."
-        case .focusing: "\(appCount) resting."
-        case .pass: "Apps lock again when the timer runs out."
-        case .night: "Resting until your morning check-in."
-        case .morning: "Tap your desk tag to begin the day."
-        }
-    }
 }
 
+/// Calm per-state background with a slow "lamp" glow behind the dial.
 private struct StateBackground: View {
     let state: HomeState
-
-    var body: some View {
-        switch state.kind {
-        case .idle:
-            Theme.background
-        case .focusing:
-            LinearGradient(colors: [Theme.focus.opacity(0.22), Theme.background], startPoint: .top, endPoint: .bottom)
-        case .pass:
-            LinearGradient(colors: [Theme.pass.opacity(0.22), Theme.background], startPoint: .top, endPoint: .bottom)
-        case .night:
-            LinearGradient(colors: [Color(red: 0.06, green: 0.07, blue: 0.13), Color(red: 0.11, green: 0.13, blue: 0.24)],
-                           startPoint: .top, endPoint: .bottom)
-        case .morning:
-            LinearGradient(colors: [Theme.gold.opacity(0.35), Theme.pass.opacity(0.12), Theme.background],
-                           startPoint: .top, endPoint: .bottom)
-        }
-    }
-}
-
-/// The big circle in the middle: tag glyph, elapsed timer, pass ring, moon or sun.
-private struct StateDial: View {
-    let state: HomeState
-    let now: Date
-    let wakeTime: TimeOfDay
-
-    @ScaledMetric(relativeTo: .largeTitle) private var timerSize: CGFloat = 56
-    @ScaledMetric(relativeTo: .largeTitle) private var dialSize: CGFloat = 260
+    let reduceMotion: Bool
+    @State private var breathe = false
 
     var body: some View {
         ZStack {
-            Circle()
-                .fill(state.tint.opacity(state.isDark ? 0.18 : 0.10))
-            Circle()
-                .stroke(state.tint.opacity(0.25), lineWidth: 2)
-
-            if case .pass(let endsAt) = state {
-                let remaining = max(0, endsAt.timeIntervalSince(now))
-                Circle()
-                    .trim(from: 0, to: remaining / PassManager.duration)
-                    .stroke(state.tint, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .padding(4)
-                    .opacity(remaining < 10 ? 0.6 + 0.4 * abs(sin(now.timeIntervalSince1970 * 2)) : 1)
-            }
-
-            VStack(spacing: 6) {
-                Image(systemName: symbol)
-                    .font(.system(size: state.kind == .idle ? 64 : 30, weight: .semibold))
-                    .foregroundStyle(state.tint)
-                    .symbolEffect(.pulse, isActive: state.kind == .idle || state.kind == .morning)
-                if let big = bigText {
-                    Text(big)
-                        .font(.system(size: min(timerSize, 84), weight: .semibold, design: .rounded))
-                        .monospacedDigit()
-                        .contentTransition(.numericText(countsDown: state.kind == .pass))
-                        .foregroundStyle(state.isDark ? Color.white : Theme.text)
-                        .minimumScaleFactor(0.6)
-                        .lineLimit(1)
-                }
-                if let small = smallText {
-                    Text(small)
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(state.isDark ? Color.white.opacity(0.7) : Theme.secondaryText)
-                }
-            }
-            .padding(24)
+            base
+            RadialGradient(colors: [state.tint.opacity(state.kind == .idle ? 0.10 : 0.22), .clear],
+                           center: UnitPoint(x: 0.5, y: 0.42), startRadius: 10, endRadius: 360)
+                .scaleEffect(breathe ? 1.08 : 1)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 6).repeatForever(autoreverses: true), value: breathe)
         }
-        .frame(width: min(dialSize, 320), height: min(dialSize, 320))
-        .animation(.default, value: bigText)
-        // One calm VoiceOver element instead of fragments that change every second.
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityText)
-        .accessibilityAddTraits(.updatesFrequently)
+        .onAppear { breathe = true }
     }
 
-    /// Next occurrence of the wake time (night lock can be lifted from then).
-    private var nextWake: Date? {
-        guard let today = wakeTime.date(on: now) else { return nil }
-        return today > now ? today : Calendar.current.date(byAdding: .day, value: 1, to: today)
-    }
-
-    private var accessibilityText: String {
-        func spoken(_ seconds: TimeInterval) -> String {
-            Duration.seconds(max(60, seconds)).formatted(.units(allowed: [.hours, .minutes], width: .wide))
-        }
-        switch state {
-        case .idle: return "Ready. Tap your desk tag to begin."
-        case .focusing(let start): return "Focusing for \(spoken(now.timeIntervalSince(start)))."
-        case .night(let start): return "Night lock, \(spoken(now.timeIntervalSince(start))) so far."
-        case .pass(let end): return "On a pass. \(spoken(end.timeIntervalSince(now))) left."
-        case .morning: return "Good morning. Tap your desk tag to check in."
-        }
-    }
-
-    private var symbol: String {
+    @ViewBuilder
+    private var base: some View {
         switch state.kind {
-        case .idle: "wave.3.right.circle.fill"
-        case .focusing: "lock.fill"
-        case .pass: "hourglass"
-        case .night: "moon.stars.fill"
-        case .morning: "sunrise.fill"
-        }
-    }
-
-    private var bigText: String? {
-        switch state {
-        case .idle: nil
-        case .focusing(let startedAt): Formatting.clock(now.timeIntervalSince(startedAt))
-        case .night: nextWake.map { Formatting.clock(max(0, $0.timeIntervalSince(now))) } // countdown to unlock time
-        case .pass(let endsAt): Formatting.clock(max(0, endsAt.timeIntervalSince(now)))
-        case .morning(let wake): now >= wake ? Formatting.clock(now.timeIntervalSince(wake)) : nil
-        }
-    }
-
-    private var smallText: String? {
-        switch state {
-        case .idle: nil
-        case .focusing: "focused"
-        case .pass: "left on your pass"
-        case .night: "until you can unlock at \(RoutineView.format(wakeTime))"
-        case .morning(let wake): now >= wake ? "since your alarm" : "alarm at \(wake.formatted(date: .omitted, time: .shortened))"
+        case .idle, .focusing, .pass:
+            Theme.background
+        case .night:
+            LinearGradient(colors: [Color(red: 0.05, green: 0.06, blue: 0.12), Color(red: 0.10, green: 0.12, blue: 0.22)],
+                           startPoint: .top, endPoint: .bottom)
+        case .morning:
+            LinearGradient(colors: [Theme.gold.opacity(0.32), Theme.pass.opacity(0.10), Theme.background],
+                           startPoint: .top, endPoint: .bottom)
         }
     }
 }
 
-/// Today at a glance: focus, sessions, passes, streak.
-private struct TodayStrip: View {
-    @EnvironmentObject private var model: AppModel
-    @Environment(\.dynamicTypeSize) private var typeSize
-    let now: Date
+// MARK: - Buttons
 
-    var body: some View {
-        let today = model.todayStats(now: now)
-        let chips = Group {
-            chip(value: Formatting.duration(today.focusSeconds), label: "today", symbol: "target", tint: Theme.focus,
-                 spoken: "\(Formatting.duration(today.focusSeconds)) focused today")
-            chip(value: "\(today.sessions)", label: today.sessions == 1 ? "session" : "sessions", symbol: "circle.circle", tint: Theme.focus,
-                 spoken: "\(today.sessions) sessions today")
-            chip(value: "\(today.passes)", label: today.passes == 1 ? "pass" : "passes", symbol: "hourglass",
-                 tint: today.backToBackPasses > 0 ? Theme.pass : Theme.secondaryText,
-                 spoken: "\(today.passes) passes today")
-            chip(value: "\(model.currentStreak)", label: "streak", symbol: "flame.fill", tint: Theme.gold,
-                 spoken: "\(model.currentStreak) day streak")
-        }
-        if typeSize.isAccessibilitySize {
-            // Large text: 2×2 so nothing truncates.
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) { chips }
-        } else {
-            HStack(spacing: 10) { chips }
-        }
-    }
-
-    private func chip(value: String, label: String, symbol: String, tint: Color, spoken: String) -> some View {
-        VStack(spacing: 4) {
-            Image(systemName: symbol)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(tint)
-            Text(value)
-                .font(.subheadline.weight(.semibold).monospacedDigit())
-                .foregroundStyle(Theme.text)
-                .contentTransition(.numericText())
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(Theme.secondaryText)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.surface.opacity(0.85)))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(spoken)
-    }
-}
-
-/// Inline setup call-to-action when something is missing (instead of an error later).
-private struct SetupButton: View {
+/// Full-width primary action with contrast-safe label colour.
+struct WideButton: View {
     let title: String
     let symbol: String
+    let fill: Color
+    let text: Color
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Label(title, systemImage: symbol)
                 .font(.headline)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
+                .foregroundStyle(text)
+                .frame(maxWidth: .infinity, minHeight: 54)
+                .background(Capsule().fill(fill))
         }
-        .buttonStyle(.borderedProminent)
-        .tint(Theme.focus)
-        .controlSize(.large)
+        .buttonStyle(.plain)
     }
 }
 
-/// Primary action: opens the NFC scan sheet.
-private struct ScanButton: View {
-    @EnvironmentObject private var model: AppModel
+/// Quiet secondary action: tinted outline capsule.
+struct SoftButton: View {
     let title: String
+    let symbol: String
     let tint: Color
+    let action: () -> Void
 
     var body: some View {
-        Button {
-            Task { await model.scanToToggle() }
-        } label: {
-            Label(title, systemImage: "wave.3.right")
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(tint)
+                .padding(.horizontal, 20)
+                .frame(minHeight: 44)
+                .background(Capsule().strokeBorder(tint.opacity(0.4), lineWidth: 1.5))
         }
-        .buttonStyle(.borderedProminent)
-        .tint(tint)
-        .controlSize(.large)
-        .disabled(model.isScanning)
+        .buttonStyle(.plain)
     }
 }
 
-/// Brick-style deliberate start without the tag: hold for 3 seconds.
+/// Deliberate start without the tag: hold for 3 seconds (revealed by "No tag nearby?").
 private struct HoldToStartButton: View {
     @EnvironmentObject private var model: AppModel
     @State private var progress: CGFloat = 0
@@ -400,24 +475,23 @@ private struct HoldToStartButton: View {
     private let duration: Double = 3
 
     var body: some View {
-        HStack(spacing: 10) {
+        VStack(spacing: 10) {
             ZStack {
-                Circle().stroke(Theme.focus.opacity(0.2), lineWidth: 3)
+                Circle().stroke(Theme.focus.opacity(0.2), lineWidth: 4)
                 Circle()
                     .trim(from: 0, to: progress)
-                    .stroke(Theme.focus, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .stroke(Theme.focus, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 Image(systemName: "hand.tap.fill")
-                    .font(.caption)
+                    .font(.title3)
                     .foregroundStyle(Theme.focus)
             }
-            .frame(width: 28, height: 28)
-            Text(isPressing ? "Keep holding…" : "Or hold here to start without the tag")
-                .font(.subheadline)
+            .frame(width: 56, height: 56)
+            Text(isPressing ? "Keep holding…" : "Hold for 3 seconds to start without the tag.\nYou'll still need it to finish.")
+                .font(.footnote)
                 .foregroundStyle(Theme.secondaryText)
+                .multilineTextAlignment(.center)
         }
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
         .onLongPressGesture(minimumDuration: duration) {
             progress = 0
@@ -433,6 +507,7 @@ private struct HoldToStartButton: View {
             }
         }
         .sensoryFeedback(.increase, trigger: tick) { _, _ in model.hapticsEnabled }
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Start without tag")
         .accessibilityHint("Hold for 3 seconds. Ending the session still needs your desk tag.")
         .accessibilityAction(named: "Start without tag") { model.startWithoutTag() }
@@ -445,52 +520,73 @@ struct SessionSummarySheet: View {
     let summary: SessionSummary
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var fill: Double = 0
     @State private var sunrise = false
 
+    private var isMorning: Bool { summary.checkedIn != nil }
+    private var progress: Double { summary.goal > 0 ? min(1, summary.todayFocus / summary.goal) : 0 }
+    private var reached: Bool { summary.goal > 0 && summary.todayFocus >= summary.goal }
+
     var body: some View {
-        content
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background {
-                if summary.checkedIn != nil {
-                    // Sunrise sweep for the morning check-in.
-                    LinearGradient(colors: [Theme.gold.opacity(0.45), Theme.pass.opacity(0.2), Theme.background],
-                                   startPoint: .top, endPoint: .bottom)
-                        .offset(y: sunrise || reduceMotion ? 0 : 400)
-                        .opacity(sunrise || reduceMotion ? 1 : 0)
-                        .ignoresSafeArea()
+        VStack(spacing: 18) {
+            ZStack {
+                if isMorning {
+                    Image(systemName: "sunrise.fill")
+                        .font(.system(size: 52))
+                        .foregroundStyle(Theme.gold)
+                        .symbolEffect(.bounce, value: sunrise)
+                } else {
+                    Circle().stroke(Theme.focus.opacity(0.15), lineWidth: 10)
+                    Circle()
+                        .trim(from: 0, to: fill)
+                        .stroke(reached ? Theme.gold : Theme.focus, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    Image(systemName: reached ? "checkmark" : "leaf.fill")
+                        .font(.title.weight(.bold))
+                        .foregroundStyle(reached ? Theme.gold : Theme.focus)
                 }
             }
-            .contentShape(Rectangle())
-            .onTapGesture { dismiss() }
-            .onAppear {
-                withAnimation(.easeOut(duration: 1.2)) { sunrise = true }
-            }
-            .task {
-                // Saves a tap every session: closes on its own.
-                do { try await Task.sleep(for: .seconds(4)) } catch { return }
-                dismiss()
-            }
-    }
+            .frame(width: 96, height: 96)
 
-    private var content: some View {
-        VStack(spacing: 18) {
-            Image(systemName: summary.checkedIn != nil ? "sunrise.fill" : "checkmark.seal.fill")
-                .font(.system(size: 56))
-                .foregroundStyle(summary.checkedIn != nil ? Theme.gold : Theme.focus)
-                .symbolEffect(.bounce, value: summary.id)
             Text(title)
-                .font(.title2.bold())
+                .font(.title.bold())
+                .fontDesign(.rounded)
                 .multilineTextAlignment(.center)
             Text(detail)
                 .font(.body)
                 .foregroundStyle(Theme.secondaryText)
                 .multilineTextAlignment(.center)
-            Text("Tap anywhere to close")
-                .font(.caption)
-                .foregroundStyle(Theme.secondaryText)
-                .accessibilityHidden(true)
+            if let observation = summary.observation {
+                Label(observation, systemImage: "sparkles")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Theme.focus)
+            }
         }
         .padding(28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            if isMorning {
+                LinearGradient(colors: [Theme.gold.opacity(0.4), Theme.pass.opacity(0.15), Theme.background],
+                               startPoint: .top, endPoint: .bottom)
+                    .opacity(sunrise || reduceMotion ? 1 : 0)
+                    .ignoresSafeArea()
+            } else {
+                Theme.background.ignoresSafeArea()
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { dismiss() }
+        .onAppear {
+            withAnimation(.easeOut(duration: 1.2)) {
+                sunrise = true
+                fill = progress
+            }
+        }
+        .task {
+            do { try await Task.sleep(for: .seconds(8)) } catch { return }
+            dismiss()
+        }
+        .accessibilityAction(named: "Close") { dismiss() }
     }
 
     private var title: String {
@@ -502,12 +598,9 @@ struct SessionSummarySheet: View {
     }
 
     private var detail: String {
-        if summary.checkedIn != nil { return "Have a good day." }
-        if summary.wasNightLock { return "Rested well. Have a good day." }
-        switch summary.passes {
-        case 0: return "No passes. Well done."
-        case 1: return "1 pass. Well done."
-        default: return "\(summary.passes) passes. Every session counts."
-        }
+        if isMorning { return "Have a good day." }
+        if summary.wasNightLock { return "Have a good day." }
+        if reached { return "\(Formatting.duration(summary.todayFocus)) today · goal reached" }
+        return "\(Formatting.duration(summary.todayFocus)) of \(Formatting.duration(summary.goal)) today"
     }
 }
