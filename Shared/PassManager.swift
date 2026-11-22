@@ -56,6 +56,7 @@ enum PassManager {
         store.shieldPassRequestedAt = nil
         Blocker().liftShields()
         PassNotifications.schedule(expiresAt: expiresAt, now: now)
+        WidgetSync.reload()
         EventLog.append(.passStarted, info: [
             "sessionID": session.id.uuidString,
             "source": source,
@@ -78,6 +79,7 @@ enum PassManager {
             Blocker().apply(store.blockConfig)
         }
         EventLog.append(.passEnded, info: ["reason": reason])
+        WidgetSync.reload()
     }
 
     /// Drops any running pass without re-blocking. Used when the session itself ends.

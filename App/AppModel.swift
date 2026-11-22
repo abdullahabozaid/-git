@@ -91,6 +91,12 @@ final class AppModel: ObservableObject {
         store.dailyGoalMinutes = minutes
     }
 
+    /// Control Center / widget / Siri start. Opens the app; ending still needs the tag.
+    func startFromControl() {
+        guard !isFocusing else { return }
+        startSession(with: nil, source: .control)
+    }
+
     /// Hold-to-start from the app (no tag needed to *start*; ending still needs it).
     func startWithoutTag() {
         startSession(with: nil, source: .hold)
@@ -281,6 +287,7 @@ final class AppModel: ObservableObject {
         session = newSession
         store.activeSession = newSession
         LiveActivityController.sync(session: newSession, passExpiresAt: nil)
+        WidgetSync.reload()
         successTick += 1
         Task { await requestNotificationsIfNeeded() }
         EventLog.append(.sessionStarted, info: [
@@ -303,6 +310,7 @@ final class AppModel: ObservableObject {
         session = nil
         store.activeSession = nil
         LiveActivityController.sync(session: nil, passExpiresAt: nil)
+        defer { WidgetSync.reload() }
         EventLog.append(.sessionEnded, info: [
             "sessionID": current.id.uuidString,
             "endedBy": "tag",
@@ -343,6 +351,7 @@ final class AppModel: ObservableObject {
         session = nil
         store.activeSession = nil
         LiveActivityController.sync(session: nil, passExpiresAt: nil)
+        WidgetSync.reload()
         let duration = Date().timeIntervalSince(current.startedAt)
         EventLog.append(.sessionEnded, info: [
             "sessionID": current.id.uuidString,

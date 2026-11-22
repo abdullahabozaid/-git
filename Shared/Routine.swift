@@ -114,5 +114,6 @@ enum NightLock {
             "sessionID": session.id.uuidString,
             "source": SessionSource.nightLock.rawValue,
         ])
+        WidgetSync.reload()
     }
 }

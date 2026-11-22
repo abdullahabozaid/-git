@@ -6,6 +6,9 @@ import WidgetKit
 struct TawfeeqWidgets: WidgetBundle {
     var body: some Widget {
         FocusLiveActivity()
+        StatusWidget()
+        StartFocusControl()
+        ScanTagControl()
     }
 }
 
@@ -29,9 +32,19 @@ struct FocusLiveActivity: Widget {
                         .multilineTextAlignment(.trailing)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text(state.subtitle)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    HStack {
+                        Text(state.subtitle)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if state.mode == .pass {
+                            Button(intent: ReturnFromPassIntent()) {
+                                Label("Return now", systemImage: "arrow.uturn.backward")
+                                    .font(.caption.weight(.semibold))
+                            }
+                            .tint(.orange)
+                        }
+                    }
                 }
             } compactLeading: {
                 Image(systemName: state.symbol).foregroundStyle(state.tint)
@@ -62,10 +75,18 @@ private struct LockScreenFocusView: View {
                 Text(state.subtitle).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            TimerText(state: state)
-                .font(.title2.monospacedDigit().weight(.semibold))
-                .multilineTextAlignment(.trailing)
-                .frame(maxWidth: 110, alignment: .trailing)
+            VStack(alignment: .trailing, spacing: 6) {
+                TimerText(state: state)
+                    .font(.title2.monospacedDigit().weight(.semibold))
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 110, alignment: .trailing)
+                if state.mode == .pass {
+                    Button(intent: ReturnFromPassIntent()) {
+                        Text("Return now").font(.caption.weight(.semibold))
+                    }
+                    .tint(.orange)
+                }
+            }
         }
         .padding(16)
     }
@@ -110,9 +131,9 @@ extension FocusActivityAttributes.ContentState {
 
     var tint: Color {
         switch mode {
-        case .focusing: Color(red: 0.36, green: 0.80, blue: 0.62)
-        case .pass: .orange
-        case .nightLock: Color(red: 0.55, green: 0.58, blue: 0.95)
+        case .focusing: Theme.focus
+        case .pass: Theme.pass
+        case .nightLock: Theme.night
         }
     }
 }
