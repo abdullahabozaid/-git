@@ -86,7 +86,58 @@ final class AppModel: ObservableObject {
         dailyGoalMinutes = store.dailyGoalMinutes
         travelUntil = store.travelUntil
         isAuthorized = AuthorizationCenter.shared.authorizationStatus == .approved
+        #if DEBUG
+        if let scene = DemoScene.fromLaunchArguments() { applyDemo(scene) }
+        #endif
     }
+
+    // MARK: - Demo mode (DEBUG): fake data for simulator screenshots
+
+    /// Set in demo mode; stops the app touching Screen Time, alarms or the real event log.
+    private(set) var isDemo = false
+    private var demoEvents: [LogEvent]?
+    private var demoBlockedApps = 0
+    @Published private(set) var demoTab: String?
+    @Published private(set) var demoOnboardingStep: Int?
+    @Published var demoShowPassSheet = false
+
+    var canStartSession: Bool { isDemo ? demoBlockedApps > 0 : config.hasAnythingToBlock }
+
+    #if DEBUG
+    private func applyDemo(_ scene: DemoScene) {
+        isDemo = true
+        let now = Date()
+        isAuthorized = true
+        onboardingCompleted = scene.onboardingStep == nil
+        demoOnboardingStep = scene.onboardingStep
+        demoTab = scene.tab
+        demoBlockedApps = scene == .empty ? 0 : 14
+        tags = scene == .empty ? [] : DemoData.tags
+        routine = DemoData.routine
+        demoEvents = scene == .empty ? [] : DemoData.events(now: now)
+        dailyGoalMinutes = 120
+
+        switch scene {
+        case .focusing, .passSheet, .insights, .rules, .settings, .largeText:
+            session = FocusSession(id: UUID(), startedAt: now.addingTimeInterval(-42 * 60 - 17), source: .tagScan, startTagID: nil)
+        case .pass:
+            session = FocusSession(id: UUID(), startedAt: now.addingTimeInterval(-63 * 60), source: .tagScan, startTagID: nil)
+            passExpiresAt = now.addingTimeInterval(3 * 60 + 12)
+        case .night:
+            session = FocusSession(id: UUID(), startedAt: now.addingTimeInterval(-3 * 3600 - 25 * 60), source: .nightLock, startTagID: nil)
+        case .morning:
+            session = FocusSession(id: UUID(), startedAt: now.addingTimeInterval(-8 * 3600), source: .nightLock, startTagID: nil)
+            pendingWake = now.addingTimeInterval(-4 * 60)
+        case .summary:
+            lastSummary = SessionSummary(duration: 52 * 60, passes: 1, wasNightLock: false, checkedIn: nil)
+        case .idle, .empty, .onboarding0, .onboarding1, .onboarding2, .onboarding3, .onboarding4, .onboarding5, .onboarding6:
+            break
+        }
+        demoShowPassSheet = scene == .passSheet
+        statsCache = stats(days: 35, now: now)
+        statsCacheDate = now
+    }
+    #endif
 
     var isFocusing: Bool { session != nil }
 
@@ -150,6 +201,7 @@ final class AppModel: ObservableObject {
     }
 
     private func refreshAuthorization() {
+        guard !isDemo else { return }
         isAuthorized = AuthorizationCenter.shared.authorizationStatus == .approved
         if isAuthorized != store.lastKnownAuthorized {
             EventLog.append(isAuthorized ? .authorizationGranted : .authorizationLost,
@@ -172,6 +224,7 @@ final class AppModel: ObservableObject {
 
     /// Called every time the app comes to the foreground.
     func onForeground() {
+        guard !isDemo else { return }
         refreshAuthorization()
         reconcile()
         if routine.nightLockEnabled, !NightLock.isMonitoring {
@@ -187,6 +240,7 @@ final class AppModel: ObservableObject {
     /// Covers stuck shields and missed extension callbacks (e.g. a pass that never re-blocked).
     /// Also called every few seconds while the Focus screen is visible.
     func reconcile(now: Date = Date()) {
+        guard !isDemo else { return }
         // State can change in other processes (pass button on the block screen, monitor extension).
         session = store.activeSession
         if let expiresAt = store.passExpiresAt, expiresAt <= now {
@@ -606,6 +660,7 @@ final class AppModel: ObservableObject {
 
     /// "14 apps", "14 apps and 3 categories", "all but 5 apps"
     var blockedSummary: String {
+        if isDemo { return demoBlockedApps == 0 ? "Nothing is" : "\(demoBlockedApps) apps are" }
         switch config.mode {
         case .everythingExceptAllowed:
             let allowed = config.allowed.applicationTokens.count
@@ -638,7 +693,7 @@ final class AppModel: ObservableObject {
 
     func stats(days: Int, now: Date = Date()) -> StatsSummary {
         StatsBuilder.build(
-            events: EventLog.all(),
+            events: demoEvents ?? EventLog.all(),
             activeSession: session,
             dayCount: days,
             goalMinutes: store.dailyGoalMinutes,

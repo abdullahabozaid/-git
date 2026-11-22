@@ -6,18 +6,20 @@ struct RootView: View {
     @EnvironmentObject private var model: AppModel
     @State private var showBlockPicker = false
     @State private var showLostTag = false
+    @State private var tab = "focus"
 
     var body: some View {
         Group {
             if !model.onboardingCompleted {
-                OnboardingFlow()
+                OnboardingFlow(initialStep: model.demoOnboardingStep)
             } else if model.isAuthorized {
-                TabView {
-                    Tab("Focus", systemImage: "circle.circle.fill") { FocusView() }
-                    Tab("Rules", systemImage: "slider.horizontal.3") { RulesView() }
-                    Tab("Insights", systemImage: "chart.bar.fill") { InsightsView() }
-                    Tab("Settings", systemImage: "gearshape.fill") { SettingsView() }
+                TabView(selection: $tab) {
+                    Tab("Focus", systemImage: "circle.circle.fill", value: "focus") { FocusView() }
+                    Tab("Rules", systemImage: "slider.horizontal.3", value: "rules") { RulesView() }
+                    Tab("Insights", systemImage: "chart.bar.fill", value: "insights") { InsightsView() }
+                    Tab("Settings", systemImage: "gearshape.fill", value: "settings") { SettingsView() }
                 }
+                .onAppear { if let demoTab = model.demoTab { tab = demoTab } }
                 .tabViewBottomAccessory { MiniPlayer() }
                 .tabBarMinimizeBehavior(.onScrollDown)
                 .tint(Theme.focus)

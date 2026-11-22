@@ -13,6 +13,10 @@ struct OnboardingFlow: View {
     @State private var permissionAttempted = false
     @State private var showShortcutGuide = false
 
+    init(initialStep: Int? = nil) {
+        _step = State(initialValue: Step(rawValue: initialStep ?? 0) ?? .welcome)
+    }
+
     enum Step: Int, CaseIterable {
         case welcome, howItWorks, permission, apps, tag, mornings, done
     }

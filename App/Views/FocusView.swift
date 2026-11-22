@@ -35,6 +35,7 @@ struct FocusView: View {
             .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(duration: 0.6), value: state.kind)
         }
         .onReceive(ticker) { _ in model.reconcile() }
+        .onAppear { if model.demoShowPassSheet { showPassSheet = true } }
         .familyActivityPicker(isPresented: $showBlockPicker, selection: Binding(
             get: { model.config.blocked },
             set: { selection in
@@ -84,7 +85,7 @@ struct FocusView: View {
         VStack(spacing: 12) {
             switch state {
             case .idle:
-                if !model.config.hasAnythingToBlock {
+                if !model.canStartSession {
                     // Prevent the error instead of reporting it at start time.
                     SetupButton(title: "Choose apps to block", symbol: "apps.iphone") { showBlockPicker = true }
                 } else if model.tags.isEmpty {
@@ -94,7 +95,7 @@ struct FocusView: View {
                 } else {
                     ScanButton(title: "Scan desk tag to begin", tint: Theme.focus)
                 }
-                if model.config.hasAnythingToBlock {
+                if model.canStartSession {
                     HoldToStartButton()
                 }
             case .focusing:

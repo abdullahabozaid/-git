@@ -15,7 +15,11 @@ enum AppGroup {
 
     static var containerURL: URL {
         guard let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: id) else {
+            #if DEBUG
+            return FileManager.default.temporaryDirectory // e.g. an unsigned simulator build
+            #else
             fatalError("App Group \(id) container is unavailable. Check the target's entitlements.")
+            #endif
         }
         return url
     }
