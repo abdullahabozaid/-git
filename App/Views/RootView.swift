@@ -44,6 +44,8 @@ struct RootView: View {
         } message: { alert in
             Text(alert.message)
         }
+        // Night lock turns the whole app dark (tab bar, mini-player, cards), not just the background.
+        .preferredColorScheme(model.homeState().kind == .night ? .dark : nil)
         .familyActivityPicker(isPresented: $showBlockPicker, selection: Binding(
             get: { model.config.blocked },
             set: { selection in

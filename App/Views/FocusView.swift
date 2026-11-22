@@ -251,6 +251,12 @@ private struct StateDial: View {
         .accessibilityAddTraits(.updatesFrequently)
     }
 
+    /// Next occurrence of the wake time (night lock can be lifted from then).
+    private var nextWake: Date? {
+        guard let today = wakeTime.date(on: now) else { return nil }
+        return today > now ? today : Calendar.current.date(byAdding: .day, value: 1, to: today)
+    }
+
     private var accessibilityText: String {
         func spoken(_ seconds: TimeInterval) -> String {
             Duration.seconds(max(60, seconds)).formatted(.units(allowed: [.hours, .minutes], width: .wide))
@@ -277,7 +283,8 @@ private struct StateDial: View {
     private var bigText: String? {
         switch state {
         case .idle: nil
-        case .focusing(let startedAt), .night(let startedAt): Formatting.clock(now.timeIntervalSince(startedAt))
+        case .focusing(let startedAt): Formatting.clock(now.timeIntervalSince(startedAt))
+        case .night: nextWake.map { Formatting.clock(max(0, $0.timeIntervalSince(now))) } // countdown to unlock time
         case .pass(let endsAt): Formatting.clock(max(0, endsAt.timeIntervalSince(now)))
         case .morning(let wake): now >= wake ? Formatting.clock(now.timeIntervalSince(wake)) : nil
         }
@@ -288,7 +295,7 @@ private struct StateDial: View {
         case .idle: nil
         case .focusing: "focused"
         case .pass: "left on your pass"
-        case .night: "until \(RoutineView.format(wakeTime))"
+        case .night: "until you can unlock at \(RoutineView.format(wakeTime))"
         case .morning(let wake): now >= wake ? "since your alarm" : "alarm at \(wake.formatted(date: .omitted, time: .shortened))"
         }
     }
