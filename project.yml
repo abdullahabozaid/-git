@@ -54,6 +54,7 @@ targets:
           - group.uk.tawfeeq
         com.apple.developer.associated-domains:
           - applinks:tawfeeq.uk
+        com.apple.developer.usernotifications.time-sensitive: true
     dependencies:
       - target: ShieldConfiguration
       - target: ShieldAction

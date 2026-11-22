@@ -53,7 +53,9 @@ enum PassManager {
         }
 
         store.passExpiresAt = expiresAt
+        store.shieldPassRequestedAt = nil
         Blocker().liftShields()
+        PassNotifications.schedule(expiresAt: expiresAt, now: now)
         EventLog.append(.passStarted, info: [
             "sessionID": session.id.uuidString,
             "source": source,
@@ -71,6 +73,7 @@ enum PassManager {
         store.passExpiresAt = nil
         store.lastPassEndedAt = now
         DeviceActivityCenter().stopMonitoring([.pass])
+        if reason != "expired" { PassNotifications.cancel() }
         if store.activeSession != nil {
             Blocker().apply(store.blockConfig)
         }
@@ -84,6 +87,7 @@ enum PassManager {
         store.passExpiresAt = nil
         store.lastPassEndedAt = now
         DeviceActivityCenter().stopMonitoring([.pass])
+        PassNotifications.cancel()
         EventLog.append(.passEnded, info: ["reason": "sessionEnded"])
     }
 
@@ -185,4 +189,10 @@ extension PassManager {
         }
         return result
     }
+}
+
+/// Shared between the ShieldAction and ShieldConfiguration extensions.
+enum ShieldPassFlow {
+    /// A first tap on "Take a 5-minute pass" stays valid for this long.
+    static let requestValidity: TimeInterval = 3 * 60
 }

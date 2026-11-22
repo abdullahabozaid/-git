@@ -21,13 +21,27 @@ final class ShieldActionExtension: ShieldActionDelegate {
     private func respond(to action: ShieldAction) -> ShieldActionResponse {
         switch action {
         case .primaryButtonPressed:
+            SharedStore.shared.shieldPassRequestedAt = nil
             return .close
         case .secondaryButtonPressed:
-            do {
-                try PassManager.start(source: "shield")
-                // .defer re-evaluates the shield; since it's lifted, the app opens.
+            // Two taps: the first starts a breathing wait (shown on the shield),
+            // the second unlocks once the wait is over. `.defer` re-renders the shield.
+            let store = SharedStore.shared
+            let now = Date()
+            let wait = TimeInterval(PassManager.waitSeconds(passesToday: PassManager.recent(now: now).today))
+            guard let requested = store.shieldPassRequestedAt,
+                  now.timeIntervalSince(requested) < ShieldPassFlow.requestValidity else {
+                store.shieldPassRequestedAt = now
                 return .defer
+            }
+            guard now.timeIntervalSince(requested) >= wait else {
+                return .defer // too early: shield shows the remaining wait
+            }
+            do {
+                try PassManager.start(source: "shield", now: now)
+                return .defer // shield lifted, so the app opens
             } catch {
+                store.shieldPassRequestedAt = nil
                 return .close
             }
         default:

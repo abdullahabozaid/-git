@@ -1,6 +1,7 @@
 import FamilyControls
 import Foundation
 import SwiftUI
+import UserNotifications
 
 struct AppAlert: Identifiable {
     let id = UUID()
@@ -281,6 +282,7 @@ final class AppModel: ObservableObject {
         store.activeSession = newSession
         LiveActivityController.sync(session: newSession, passExpiresAt: nil)
         successTick += 1
+        Task { await requestNotificationsIfNeeded() }
         EventLog.append(.sessionStarted, info: [
             "sessionID": newSession.id.uuidString,
             "source": source.rawValue,
@@ -317,6 +319,16 @@ final class AppModel: ObservableObject {
             checkedIn: checkedIn
         )
         successTick += 1
+    }
+
+    /// Asked in context (first session), not during onboarding.
+    private func requestNotificationsIfNeeded() async {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        guard settings.authorizationStatus == .notDetermined else { return }
+        if (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) == true {
+            PassNotifications.scheduleWeeklySummary()
+        }
     }
 
     /// Break-glass escape for a lost tag. Always allowed, always logged.

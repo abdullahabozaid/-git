@@ -18,6 +18,7 @@ final class SharedStore {
         static let dailyGoalMinutes = "dailyGoalMinutes"
         static let onboardingCompleted = "onboardingCompleted"
         static let hapticsEnabled = "hapticsEnabled"
+        static let shieldPassRequestedAt = "shieldPassRequestedAt"
     }
 
     private let defaults: UserDefaults
@@ -85,6 +86,12 @@ final class SharedStore {
     var dailyGoalMinutes: Int {
         get { (defaults.object(forKey: Key.dailyGoalMinutes) as? Int) ?? 120 }
         set { defaults.set(newValue, forKey: Key.dailyGoalMinutes) }
+    }
+
+    /// First tap on the block screen's pass button; the second tap unlocks after the breathing wait.
+    var shieldPassRequestedAt: Date? {
+        get { defaults.object(forKey: Key.shieldPassRequestedAt) as? Date }
+        set { defaults.set(newValue, forKey: Key.shieldPassRequestedAt) }
     }
 
     var hapticsEnabled: Bool {
