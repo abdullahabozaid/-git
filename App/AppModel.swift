@@ -256,6 +256,10 @@ final class AppModel: ObservableObject {
                 known.contains { $0.matches(uid: result.uid) } ? nil : "That tag isn't registered with Tawfeeq."
             }
             guard let tag = known.first(where: { $0.matches(uid: result.uid) }) else { return }
+            if let index = tags.firstIndex(where: { $0.id == tag.id }) {
+                tags[index].lastScannedAt = Date()
+                store.tags = tags
+            }
             if wake != nil {
                 // Morning check-in: silences the alarm and ends the night lock (or any session),
                 // but never starts a new session.

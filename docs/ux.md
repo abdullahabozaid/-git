@@ -14,41 +14,41 @@ This spec is distilled from [ux-research.md](ux-research.md), which covers Brick
 
 ## Feature list
 
-| # | Feature | Borrowed from | Where | Status (✅ built · ⏳ in progress) |
+| # | Feature | Borrowed from | Where | Status (✅ built and compiles in CI; not yet tested on a device) |
 |---|---|---|---|---|
 | 1 | Tap desk tag to start/stop (tag-verified stop) | Brick | Focus | ✅ |
-| 2 | Hold-to-start ring (3 s, rising haptics) when the tag isn't handy | Brick | Focus | ⏳ |
-| 3 | Remote start (Shortcut, Control Center, widget); stopping always needs the tag | Brick, Foqos | Shortcuts, Controls | ⏳ |
-| 4 | Big rounded elapsed timer with rolling digits | Opal, Apple Clock | Focus | ⏳ |
-| 5 | Home changes per state: idle, focusing, pass, night lock, morning | Opal | Focus | ⏳ |
-| 6 | Mini-player above the tab bar on every tab | Opal 4.21, iOS 26 | All tabs | ⏳ |
-| 7 | Session summary sheet on end ("52 minutes of focus") | Forest, Brick | Focus | ⏳ |
-| 8 | Pass with an escalating breathing wait (5 s → 15 s → 30 s) | Opal, ScreenZen | Pass sheet, block screen | ⏳ |
-| 9 | Intention chips before a pass (Message, Navigation, Work, Other) | Opal, one sec | Pass sheet | ⏳ |
-| 10 | "Pass #3 today · last one 12 min ago", plus an amber back-to-back warning | one sec, Foqos | Block screen, pass sheet | ⏳ |
-| 11 | Two-tap pass on the block screen (tap, breathe, tap again) | research §4.4 | Block screen | ⏳ |
-| 12 | Rotating block-screen messages that name the blocked app | Foqos | Block screen | ⏳ |
-| 13 | "1 minute left" and "Pass over, welcome back" notifications | research §4.4 | Notifications | ⏳ |
-| 14 | Live Activity with per-state symbol and tint; "Return now" during a pass | Foqos, HIG | Lock Screen, Dynamic Island | ⏳ |
-| 15 | Lock Screen widgets: focus ring vs goal, status line, streak | HIG | Lock Screen | ⏳ |
-| 16 | Home Screen widgets: status + start, today + streak | HIG | Home Screen | ⏳ |
-| 17 | Control Center controls: Start focus, Scan desk tag | Foqos | Control Center, Action button | ⏳ |
-| 18 | Night lock with its own night theme on Home | research §4.5 | Focus | ⏳ |
-| 19 | Morning check-in screen: warm, big scan button, time since the alarm | Alarmy, Apple Clock | Morning sheet | ⏳ |
+| 2 | Hold-to-start ring (3 s, rising haptics) when the tag isn't handy | Brick | Focus | ✅ |
+| 3 | Remote start (Shortcut, Control Center, widget); stopping always needs the tag | Brick, Foqos | Shortcuts, Controls | ✅ |
+| 4 | Big rounded elapsed timer with rolling digits | Opal, Apple Clock | Focus | ✅ |
+| 5 | Home changes per state: idle, focusing, pass, night lock, morning | Opal | Focus | ✅ |
+| 6 | Mini-player above the tab bar on every tab | Opal 4.21, iOS 26 | All tabs | ✅ |
+| 7 | Session summary sheet on end ("52 minutes of focus") | Forest, Brick | Focus | ✅ |
+| 8 | Pass with an escalating breathing wait (5 s → 15 s → 30 s) | Opal, ScreenZen | Pass sheet, block screen | ✅ |
+| 9 | Intention chips before a pass (Message, Navigation, Work, Other) | Opal, one sec | Pass sheet | ✅ |
+| 10 | "Pass #3 today · last one 12 min ago", plus an amber back-to-back warning | one sec, Foqos | Block screen, pass sheet | ✅ |
+| 11 | Two-tap pass on the block screen (tap, breathe, tap again) | research §4.4 | Block screen | ✅ |
+| 12 | Rotating block-screen messages that name the blocked app | Foqos | Block screen | ✅ |
+| 13 | "1 minute left" and "Pass over, welcome back" notifications | research §4.4 | Notifications | ✅ |
+| 14 | Live Activity with per-state symbol and tint; "Return now" during a pass | Foqos, HIG | Lock Screen, Dynamic Island | ✅ |
+| 15 | Lock Screen widgets: focus ring vs goal, status line, streak | HIG | Lock Screen | ✅ |
+| 16 | Home Screen widgets: status + start, today + streak | HIG | Home Screen | ✅ |
+| 17 | Control Center controls: Start focus, Scan desk tag | Foqos | Control Center, Action button | ✅ |
+| 18 | Night lock with its own night theme on Home | research §4.5 | Focus | ✅ |
+| 19 | Morning check-in screen: warm, big scan button, time since the alarm | Alarmy, Apple Clock | Morning sheet | ✅ |
 | 20 | Alarm the tag must silence: Scan button, re-arm, chaser alarms | Alarmy, Touchstone | Alarm | ✅ |
-| 21 | Travel mode: pause night lock and alarm for N days | Alarmy lesson | Settings | ⏳ |
-| 22 | Block list only gets stricter during a session (add yes, remove no) | Opal exploit fix | Rules | ⏳ |
-| 23 | Weekly hero: "Focus this week 14h 20m" plus change vs last week | Brick | Insights | ⏳ |
-| 24 | Streak calendar (4-week grid) with a grace day per week | Foqos, Forest | Insights | ⏳ |
-| 25 | Passes by intention, plus back-to-back count | Opal | Insights | ⏳ |
-| 26 | Morning check-in strip | research §4.9 | Insights | ⏳ |
+| 21 | Travel mode: pause night lock and alarm for N days | Alarmy lesson | Settings | ✅ |
+| 22 | Block list only gets stricter during a session (add yes, remove no) | Opal exploit fix | Rules | ✅ |
+| 23 | Weekly hero: "Focus this week 14h 20m" plus change vs last week | Brick | Insights | ✅ |
+| 24 | Streak calendar (4-week grid) with a grace day per week | Foqos, Forest | Insights | ✅ |
+| 25 | Passes by intention, plus back-to-back count | Opal | Insights | ✅ |
+| 26 | Morning check-in strip | research §4.9 | Insights | ✅ |
 | 27 | Screen Time report: today, daily bars, pickups, top apps (display only) | Apple Screen Time | Insights | ✅ |
-| 28 | One gentle suggestion from your own data ("Most passes happen 3–4 pm") | research §4.9 | Insights | ⏳ |
-| 29 | Weekly summary notification on Sunday evening | research §4.9 | Notifications | ⏳ |
-| 30 | Tags: roles, last scanned, add, remove | Foqos | Settings | ⏳ |
-| 31 | "Lost your tag?" break-glass: 3 taps, then slide to end; logged | Foqos, Apple Clock | Settings, Focus | ⏳ |
+| 28 | One gentle suggestion from your own data ("Most passes happen 3–4 pm") | research §4.9 | Insights | ✅ |
+| 29 | Weekly summary notification on Sunday evening | research §4.9 | Notifications | ✅ |
+| 30 | Tags: roles, last scanned, add, remove | Foqos | Settings | ✅ |
+| 31 | "Lost your tag?" break-glass: 3 taps, then slide to end; logged | Foqos, Apple Clock | Settings, Focus | ✅ |
 | 32 | Guided onboarding: privacy-first permission, apps, tag, optional mornings | ScreenZen, Foqos | Onboarding | ✅ |
-| 33 | Haptics for scan, start, end, warning and break-glass, with an off switch | HIG | Everywhere | ⏳ |
+| 33 | Haptics for scan, start, end, warning and break-glass, with an off switch | HIG | Everywhere | ✅ |
 | 34 | Accountability partner | — | Settings | Later (phase 5) |
 
 ## Information architecture

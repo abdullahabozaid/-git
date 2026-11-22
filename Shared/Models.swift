@@ -36,6 +36,7 @@ struct EnrolledTag: Codable, Identifiable, Hashable {
     /// Whether the URL was successfully written to the tag.
     var hasLink: Bool
     var enrolledAt: Date
+    var lastScannedAt: Date?
 
     func matches(uid other: String) -> Bool {
         uid.caseInsensitiveCompare(other) == .orderedSame
