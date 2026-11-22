@@ -9,11 +9,11 @@ struct BlockListView: View {
     @State private var showAllowedPicker = false
 
     var body: some View {
-        NavigationStack {
+        Group {
             Form {
                 if model.isFocusing {
                     Section {
-                        Label("Locked while you're focusing. End the session with your desk tag to make changes.",
+                        Label("You're focusing, so you can add apps but not remove them until the session ends.",
                               systemImage: "lock.fill")
                             .foregroundStyle(.secondary)
                     }
@@ -60,7 +60,6 @@ struct BlockListView: View {
                     Text("Stops you from deleting Tawfeeq (or any app) to escape a session.")
                 }
             }
-            .disabled(model.isFocusing)
             .navigationTitle("Block list")
             .familyActivityPicker(isPresented: $showBlockedPicker, selection: $draft.blocked)
             .familyActivityPicker(isPresented: $showAllowedPicker, selection: $draft.allowed)

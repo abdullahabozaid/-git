@@ -6,7 +6,7 @@ struct RoutineView: View {
     @State private var isSaving = false
 
     var body: some View {
-        NavigationStack {
+        Group {
             Form {
                 if model.isFocusing {
                     Section {

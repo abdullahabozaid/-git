@@ -35,7 +35,7 @@ enum PassManager {
 
     /// Lifts the shields for `duration`. Idempotent while a pass is already running.
     @discardableResult
-    static func start(source: String, now: Date = Date()) throws -> Date {
+    static func start(source: String, intention: PassIntention? = nil, now: Date = Date()) throws -> Date {
         let store = SharedStore.shared
         guard let session = store.activeSession else { throw PassError.noSession }
         if let current = store.passExpiresAt, current > now { return current }
@@ -58,6 +58,7 @@ enum PassManager {
             "sessionID": session.id.uuidString,
             "source": source,
             "backToBack": String(backToBack),
+            "intention": intention?.rawValue ?? "",
             "expiresAt": ISO8601DateFormatter().string(from: expiresAt),
         ])
         return expiresAt
@@ -128,5 +129,60 @@ enum PassManager {
             if event.info["backToBack"] == "true" { summary.backToBack += 1 }
         }
         return summary
+    }
+}
+
+// MARK: - Friction
+
+/// Why a pass was taken. Shown as chips before a pass and summarised in Insights.
+enum PassIntention: String, CaseIterable, Identifiable, Codable {
+    case message, navigation, work, other
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .message: "Reply to someone"
+        case .navigation: "Directions"
+        case .work: "Work"
+        case .other: "Something else"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .message: "bubble.left.fill"
+        case .navigation: "map.fill"
+        case .work: "briefcase.fill"
+        case .other: "ellipsis.circle.fill"
+        }
+    }
+}
+
+extension PassManager {
+    /// Escalating breathing wait before a pass: 5 s, then 15 s, then 30 s.
+    static func waitSeconds(passesToday: Int) -> Int {
+        switch passesToday {
+        case 0: 5
+        case 1: 15
+        default: 30
+        }
+    }
+
+    struct RecentPasses {
+        var today = 0
+        var lastStartedAt: Date?
+        var inLast30Minutes = 0
+    }
+
+    static func recent(now: Date = Date(), events: [LogEvent] = EventLog.all()) -> RecentPasses {
+        var result = RecentPasses()
+        let calendar = Calendar.current
+        for event in events where event.kind == .passStarted {
+            if calendar.isDate(event.date, inSameDayAs: now) { result.today += 1 }
+            if now.timeIntervalSince(event.date) < 30 * 60 { result.inLast30Minutes += 1 }
+            if result.lastStartedAt.map({ event.date > $0 }) ?? true { result.lastStartedAt = event.date }
+        }
+        return result
     }
 }

@@ -5,7 +5,7 @@ struct TagsView: View {
     @State private var showEnroll = false
 
     var body: some View {
-        NavigationStack {
+        Group {
             List {
                 if model.tags.isEmpty {
                     ContentUnavailableView(

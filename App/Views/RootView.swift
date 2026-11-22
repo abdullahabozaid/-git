@@ -9,12 +9,14 @@ struct RootView: View {
                 OnboardingFlow()
             } else if model.isAuthorized {
                 TabView {
-                    Tab("Focus", systemImage: "circle.circle") { FocusView() }
-                    Tab("Stats", systemImage: "chart.bar.fill") { StatsView() }
-                    Tab("Block list", systemImage: "hand.raised") { BlockListView() }
-                    Tab("Routine", systemImage: "alarm") { RoutineView() }
-                    Tab("Tags", systemImage: "wave.3.right") { TagsView() }
+                    Tab("Focus", systemImage: "circle.circle.fill") { FocusView() }
+                    Tab("Rules", systemImage: "slider.horizontal.3") { RulesView() }
+                    Tab("Insights", systemImage: "chart.bar.fill") { StatsView() }
+                    Tab("Settings", systemImage: "gearshape.fill") { SettingsView() }
                 }
+                .tabViewBottomAccessory { MiniPlayer() }
+                .tabBarMinimizeBehavior(.onScrollDown)
+                .tint(Theme.focus)
             } else {
                 OnboardingView()
             }

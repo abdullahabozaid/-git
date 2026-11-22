@@ -17,6 +17,7 @@ final class SharedStore {
         static let extraAlarms = "extraAlarms"
         static let dailyGoalMinutes = "dailyGoalMinutes"
         static let onboardingCompleted = "onboardingCompleted"
+        static let hapticsEnabled = "hapticsEnabled"
     }
 
     private let defaults: UserDefaults
@@ -84,6 +85,11 @@ final class SharedStore {
     var dailyGoalMinutes: Int {
         get { (defaults.object(forKey: Key.dailyGoalMinutes) as? Int) ?? 120 }
         set { defaults.set(newValue, forKey: Key.dailyGoalMinutes) }
+    }
+
+    var hapticsEnabled: Bool {
+        get { (defaults.object(forKey: Key.hapticsEnabled) as? Bool) ?? true }
+        set { defaults.set(newValue, forKey: Key.hapticsEnabled) }
     }
 
     var onboardingCompleted: Bool {

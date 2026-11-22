@@ -77,6 +77,23 @@ struct BlockConfig: Codable, Equatable {
         }
     }
 
+    /// True if `self` blocks everything `other` blocks and allows nothing extra.
+    /// During a session the block list may only get stricter.
+    func isAtLeastAsStrict(as other: BlockConfig) -> Bool {
+        guard preventAppRemoval || !other.preventAppRemoval else { return false }
+        guard allowed.applicationTokens.isSubset(of: other.allowed.applicationTokens) else { return false }
+        switch (other.mode, mode) {
+        case (.everythingExceptAllowed, .selected):
+            return false
+        case (_, .everythingExceptAllowed):
+            return true
+        case (.selected, .selected):
+            return other.blocked.applicationTokens.isSubset(of: blocked.applicationTokens)
+                && other.blocked.categoryTokens.isSubset(of: blocked.categoryTokens)
+                && other.blocked.webDomainTokens.isSubset(of: blocked.webDomainTokens)
+        }
+    }
+
     var exceedsAppLimit: Bool {
         blocked.applicationTokens.count > Self.maxAppTokens
             || allowed.applicationTokens.count > Self.maxAppTokens
@@ -88,6 +105,8 @@ enum SessionSource: String, Codable {
     case tagLink
     case shortcut
     case nightLock
+    case hold
+    case control
 }
 
 struct FocusSession: Codable, Equatable {

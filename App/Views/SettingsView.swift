@@ -1,0 +1,123 @@
+import SwiftUI
+
+struct SettingsView: View {
+    @EnvironmentObject private var model: AppModel
+    @State private var showShortcutGuide = false
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    NavigationLink {
+                        TagsView()
+                    } label: {
+                        RuleRow(symbol: "wave.3.right", tint: Theme.focus, title: "Tags",
+                                detail: tagsDetail)
+                    }
+                    Button {
+                        showShortcutGuide = true
+                    } label: {
+                        RuleRow(symbol: "bolt.fill", tint: Theme.gold, title: "Make it one tap",
+                                detail: "Start focus without opening the app")
+                    }
+                    .foregroundStyle(Theme.text)
+                } header: {
+                    Text("Your desk")
+                }
+
+                Section("Goal") {
+                    Stepper(value: Binding(get: { model.dailyGoalMinutes },
+                                           set: { model.setDailyGoal(minutes: $0) }),
+                            in: 15...600, step: 15) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Daily focus goal")
+                            Text(Formatting.duration(TimeInterval(model.dailyGoalMinutes * 60)))
+                                .font(.caption)
+                                .foregroundStyle(Theme.secondaryText)
+                        }
+                    }
+                }
+
+                Section("Feel") {
+                    Toggle("Haptics", isOn: Binding(get: { model.hapticsEnabled },
+                                                    set: { model.setHaptics($0) }))
+                }
+
+                Section("Help") {
+                    NavigationLink {
+                        LostTagView()
+                    } label: {
+                        RuleRow(symbol: "questionmark.circle.fill", tint: Theme.secondaryText,
+                                title: "Lost your tag?", detail: "How to get out of a session")
+                    }
+                }
+
+                Section {
+                    LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–")
+                } footer: {
+                    Text("Tawfeeq uses Apple's Screen Time. Your usage never leaves this iPhone.")
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
+            .navigationTitle("Settings")
+            .sheet(isPresented: $showShortcutGuide) {
+                ShortcutGuideSheet()
+                    .presentationDetents([.large])
+            }
+        }
+    }
+
+    private var tagsDetail: String {
+        let desk = model.tags.filter { $0.role == .desk }.count
+        let spare = model.tags.filter { $0.role == .spare }.count
+        if desk + spare == 0 { return "No tags yet" }
+        return "\(desk) desk · \(spare) spare"
+    }
+}
+
+/// Step-by-step: Shortcuts → Automation → NFC → Desk Tag Tapped.
+struct ShortcutGuideSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    private let steps: [(String, String)] = [
+        ("app.badge.fill", "Open the Shortcuts app and go to Automation."),
+        ("plus.circle.fill", "Tap + and choose NFC."),
+        ("wave.3.right", "Tap Scan and hold your iPhone to your desk tag. Name it \"Desk\"."),
+        ("bolt.fill", "Choose Run Immediately, and turn off Notify When Run."),
+        ("square.stack.3d.up.fill", "Add the action Desk Tag Tapped from Tawfeeq."),
+    ]
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                        HStack(alignment: .top, spacing: 14) {
+                            Text("\(index + 1)")
+                                .font(.headline.monospacedDigit())
+                                .foregroundStyle(.white)
+                                .frame(width: 28, height: 28)
+                                .background(Circle().fill(Theme.focus))
+                            Label(step.1, systemImage: step.0)
+                                .labelStyle(.titleOnly)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                } footer: {
+                    Text("Now one tap on your desk starts a session. To end it, Tawfeeq opens and asks you to scan the tag, so a shortcut alone can't end your focus.")
+                }
+                Section {
+                    Button("Open Shortcuts") {
+                        if let url = URL(string: "shortcuts://") { UIApplication.shared.open(url) }
+                    }
+                }
+            }
+            .navigationTitle("Make it one tap")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
+        }
+    }
+}
