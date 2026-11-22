@@ -43,6 +43,16 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             -quiet 2>&1 | tee build.log
 
+      - name: Check app bundle contents
+        run: |
+          APP=build/Build/Products/Debug-iphoneos/Tawfeeq.app
+          echo "PlugIns:"; ls "$APP/PlugIns"
+          echo "Extensions:"; ls "$APP/Extensions"
+          for ext in ShieldConfiguration ShieldAction DeviceActivityMonitor Widgets; do
+            test -d "$APP/PlugIns/$ext.appex" || { echo "::error::missing $ext.appex"; exit 1; }
+          done
+          test -d "$APP/Extensions/ActivityReport.appex" || { echo "::error::missing ActivityReport.appex"; exit 1; }
+
       - name: Show errors
         if: failure()
         run: grep -E "error:" build.log | sort -u | head -100 || true

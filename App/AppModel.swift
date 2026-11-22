@@ -24,6 +24,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var pendingWake: Date?
     @Published private(set) var isScanning = false
     @Published var alert: AppAlert?
+    @Published private(set) var onboardingCompleted: Bool
 
     private let store = SharedStore.shared
     private let blocker = Blocker()
@@ -35,6 +36,7 @@ final class AppModel: ObservableObject {
         session = store.activeSession
         passExpiresAt = store.passExpiresAt
         routine = store.routine
+        onboardingCompleted = store.onboardingCompleted
         isAuthorized = AuthorizationCenter.shared.authorizationStatus == .approved
     }
 
@@ -63,6 +65,11 @@ final class AppModel: ObservableObject {
                             info: ["duringSession": isFocusing ? "true" : "false"])
             store.lastKnownAuthorized = isAuthorized
         }
+    }
+
+    func completeOnboarding() {
+        store.onboardingCompleted = true
+        onboardingCompleted = true
     }
 
     // MARK: - Lifecycle

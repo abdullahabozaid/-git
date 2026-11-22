@@ -5,7 +5,9 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if model.isAuthorized {
+            if !model.onboardingCompleted {
+                OnboardingFlow()
+            } else if model.isAuthorized {
                 TabView {
                     Tab("Focus", systemImage: "circle.circle") { FocusView() }
                     Tab("Stats", systemImage: "chart.bar.fill") { StatsView() }

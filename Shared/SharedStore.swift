@@ -16,6 +16,7 @@ final class SharedStore {
         static let lastNightLockEndedAt = "lastNightLockEndedAt"
         static let extraAlarms = "extraAlarms"
         static let dailyGoalMinutes = "dailyGoalMinutes"
+        static let onboardingCompleted = "onboardingCompleted"
     }
 
     private let defaults: UserDefaults
@@ -83,6 +84,11 @@ final class SharedStore {
     var dailyGoalMinutes: Int {
         get { (defaults.object(forKey: Key.dailyGoalMinutes) as? Int) ?? 120 }
         set { defaults.set(newValue, forKey: Key.dailyGoalMinutes) }
+    }
+
+    var onboardingCompleted: Bool {
+        get { defaults.bool(forKey: Key.onboardingCompleted) }
+        set { defaults.set(newValue, forKey: Key.onboardingCompleted) }
     }
 
     private func load<T: Decodable>(_ key: String) -> T? {
