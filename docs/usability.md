@@ -69,3 +69,22 @@ All metrics come from Tawfeeq's own event log. The ones that matter to you are s
 | NFC scan success rate | Reliability; a weak sticker position shows up here | `scanSucceeded` / `scanFailed` with reason | Settings → Diagnostics |
 | Ended without tag | Escape-hatch use; should stay near 0 | `sessionEnded.endedBy = breakGlass` | Insights → Passes |
 | Time to first session | How smooth onboarding is | `onboardingStarted` → first `sessionStarted` | Settings → Diagnostics |
+
+## 5. Visual review loop
+
+Screens are now rendered in the iOS Simulator from demo data (`-demo <scene>`) by `.github/workflows/screenshots.yml`. Any commit with `[screenshots]` in its message triggers it, and the PNGs land in [screenshots/](screenshots).
+
+Round 1 combined our own review with an independent design critique. Fixes made from what the screenshots actually showed:
+
+| Problem seen | Fix |
+|---|---|
+| Idle home was an empty circle plus four "0" stat chips | The dial is today's goal ring *and* the scan button; the chips are gone |
+| Ticking seconds and blurry digits; mini-player and dial disagreed by a second | Per-minute focus time; the system renders the pass countdown |
+| Night counted up next to the word "until"; mini-player nearly invisible | "Unlocks at 6:45", no counter; the whole screen goes dark during night lock |
+| Morning counted how late you were | "Your phone rested 8h 12m"; check-ins shown as stamps |
+| White text on light teal, amber and gold buttons (2.1–3.1:1) | `onFocus` / `onPass` / `onGold` label colours (≥4.5:1) |
+| At large text the main button was hidden under the tab bar | Home scrolls; the layout simplified |
+| Onboarding was system blue on white | Brand colours, interactive "try it" dial, hero moment for the tag, time presets |
+| Insights showed "−1h 21m ↘" and "0 day streak" | Week as 7 goal rings; change vs last week only when it's an improvement; "Rhythm: 13 of 28 days" |
+| Grace-day dots never rendered | Grid built from 28-day stats |
+| No app icon | A dawn sun over the desk line, with rays that double as NFC waves |

@@ -655,7 +655,8 @@ final class AppModel: ObservableObject {
         summary.enriched = true
         refreshStats(now: now)
         let stats = statsCache
-        summary.todayFocus = todayStats(now: now).focusSeconds
+        // Always include the session that just ended, even if the log write is still landing.
+        summary.todayFocus = max(todayStats(now: now).focusSeconds, summary.wasNightLock ? 0 : summary.duration)
         summary.goal = TimeInterval(dailyGoalMinutes * 60)
         let lastWeek = stats?.days.suffix(7) ?? []
         if summary.checkedIn != nil {

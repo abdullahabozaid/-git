@@ -292,10 +292,10 @@ struct OnboardingFlow: View {
                 .foregroundStyle(Theme.secondaryText)
                 .multilineTextAlignment(.center)
             VStack(spacing: 12) {
-                TimeChoice(title: "Night lock from", symbol: "moon.stars.fill", tint: Theme.night,
+                TimeChoice(title: "Night lock from", symbol: "moon.stars.fill", tint: Theme.night, onTint: Theme.onNight,
                            isOn: $routine.nightLockEnabled, time: timeBinding(\.nightLockStart),
                            presets: [TimeOfDay(hour: 22, minute: 0), TimeOfDay(hour: 22, minute: 30), TimeOfDay(hour: 23, minute: 0)])
-                TimeChoice(title: "Wake alarm at", symbol: "alarm.fill", tint: Theme.gold,
+                TimeChoice(title: "Wake alarm at", symbol: "alarm.fill", tint: Theme.gold, onTint: Theme.onGold,
                            isOn: $routine.wakeEnabled, time: timeBinding(\.wakeTime),
                            presets: [TimeOfDay(hour: 6, minute: 0), TimeOfDay(hour: 6, minute: 30), TimeOfDay(hour: 7, minute: 0)])
             }
@@ -422,6 +422,7 @@ private struct TimeChoice: View {
     let title: String
     let symbol: String
     let tint: Color
+    let onTint: Color
     @Binding var isOn: Bool
     @Binding var time: TimeOfDay
     let presets: [TimeOfDay]
@@ -441,8 +442,8 @@ private struct TimeChoice: View {
                         Button(RoutineView.format(preset)) { time = preset }
                             .font(.subheadline.weight(.semibold))
                             .frame(maxWidth: .infinity, minHeight: 40)
-                            .foregroundStyle(selected ? Theme.onFocus : Theme.text)
-                            .background(Capsule().fill(selected ? Theme.focus : Theme.secondaryText.opacity(0.12)))
+                            .foregroundStyle(selected ? onTint : Theme.text)
+                            .background(Capsule().fill(selected ? tint : Theme.secondaryText.opacity(0.12)))
                             .buttonStyle(.plain)
                             .accessibilityAddTraits(selected ? .isSelected : [])
                     }

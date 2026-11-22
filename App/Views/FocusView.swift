@@ -16,7 +16,9 @@ struct FocusView: View {
     var body: some View {
         // Minute-level updates: calm, no ticking seconds. The pass countdown is rendered by the system.
         TimelineView(.everyMinute) { context in
-            let state = model.homeState(now: context.date)
+            // The context date is the start of the minute; use the real time so numbers agree.
+            let now = max(context.date, Date())
+            let state = model.homeState(now: now)
             GeometryReader { proxy in
                 ZStack {
                     StateBackground(state: state, reduceMotion: reduceMotion)
@@ -27,11 +29,11 @@ struct FocusView: View {
                             header(state)
                                 .padding(.top, 12)
                             Spacer(minLength: 28)
-                            FocusDial(state: state, now: context.date) {
+                            FocusDial(state: state, now: now) {
                                 Task { await model.scanToToggle() }
                             }
                             Spacer(minLength: 20)
-                            contextLine(state, now: context.date)
+                            contextLine(state, now: now)
                             Spacer(minLength: 24)
                             actions(state)
                                 .padding(.bottom, 24)
@@ -241,7 +243,7 @@ private struct FocusDial: View {
         case .night, .morning:
             EmptyView()
         case .idle, .focusing:
-            if model.hasHistory || state.kind == .focusing {
+            if (model.hasHistory || state.kind == .focusing) && progress > 0.005 {
                 Circle()
                     .trim(from: 0, to: max(0.001, progress))
                     .stroke(reached ? Theme.gold : Theme.focus, style: StrokeStyle(lineWidth: 14, lineCap: .round))
