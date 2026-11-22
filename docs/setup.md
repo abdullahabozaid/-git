@@ -83,14 +83,43 @@ Run `xcodegen generate` again whenever `project.yml` changes or files are added.
 
 ### Phase 3 test checklist
 
-- [ ] **Routine → Test alarm.** Lock the phone. The alarm rings and shows **Scan desk tag**.
+- [ ] **Rules → Wake alarm → Test alarm.** Lock the phone. The alarm rings and shows **Scan desk tag**.
 - [ ] Set the wake alarm for 2–3 minutes from now and save. When it rings, press **Stop**. It rings again about 30 s later, and backup alarms keep coming every minute.
 - [ ] Press **Scan desk tag** on the alarm, or open Tawfeeq, and scan the desk tag. Everything goes quiet and nothing rings again that morning.
 - [ ] Night lock: set it to start in 20 minutes, with the wake time an hour later. At the start time, apps lock. The Focus tab shows "night lock".
 - [ ] After the wake time passes, apps are **still** locked until you scan the desk tag.
 - [ ] Scanning the desk tag in the morning checks in and ends the night lock in one tap.
 
+### Redesign test checklist (UX spec in [ux.md](ux.md))
 
+- [ ] **Onboarding.** Delete and reinstall the app. You see welcome → how it works → Screen Time → choose apps (+ always-allowed) → desk tag → mornings → done.
+- [ ] **Focus tab:**
+  - idle shows the pulsing tag glyph, the today strip and your next event;
+  - a scan turns it teal, with a rolling timer and a success haptic;
+  - ending shows the "X minutes of focus" sheet.
+- [ ] **Hold-to-start.** Hold the small ring for 3 s. The session starts, and ending it still needs the tag.
+- [ ] **Mini-player.** Above the tab bar on every tab: timer while focusing, countdown on a pass, next event when idle.
+- [ ] **Pass from the app:**
+  1. Take a pass → pick a reason → breathe (5 s, then 15 s, then 30 s for later passes).
+  2. Unlock: the home turns amber with a countdown ring.
+  3. **Return now** re-blocks.
+- [ ] **Pass from the block screen:**
+  1. Tap **Take a 5-minute pass**. The shield says "Breathe".
+  2. Tap again before the wait is over. It shows the seconds left.
+  3. Tap again after the wait. The app opens.
+- [ ] **Back-to-back.** Take 3 passes within 30 minutes. You get the amber warning on the shield and in the pass sheet.
+- [ ] **Notifications** during a pass: "1 minute left", then "Pass over".
+- [ ] **Rules → Block list during a session.** Adding apps works. Removing one shows "removing waits until your session ends".
+- [ ] **Insights:** week hero with the change vs last week, streak calendar, focus chart with goal line, passes by reason, mornings strip, tip, Screen Time report.
+- [ ] **Widgets.** Add the Lock Screen ring, status and streak widgets, plus the Home Screen small and medium widgets. Start a session: they update.
+- [ ] **Control Center.** Add **Start Focus** and **Scan Desk Tag**. Both open Tawfeeq and do the right thing.
+- [ ] **Live Activity.** Focusing shows a timer on the Lock Screen and in the Dynamic Island. A pass shows a countdown with a **Return now** button.
+- [ ] **Settings → Lost your tag?** Crack the glass 3 times, then slide to end. Insights shows "ended without tag".
+- [ ] **Settings → Travel mode.** Night lock and the alarm stay off until the "Back on" date.
+
+### Tap the sticker to start (Shortcuts automation)
+
+The in-app guide is at Settings → **Make it one tap**.
 
 1. Open **Shortcuts** → **Automation** → **+** → **NFC**.
 2. Tap **Scan**, hold the phone on your desk sticker, and name it "Desk".
