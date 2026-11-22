@@ -8,6 +8,7 @@ struct RootView: View {
             if model.isAuthorized {
                 TabView {
                     Tab("Focus", systemImage: "circle.circle") { FocusView() }
+                    Tab("Stats", systemImage: "chart.bar.fill") { StatsView() }
                     Tab("Block list", systemImage: "hand.raised") { BlockListView() }
                     Tab("Routine", systemImage: "alarm") { RoutineView() }
                     Tab("Tags", systemImage: "wave.3.right") { TagsView() }

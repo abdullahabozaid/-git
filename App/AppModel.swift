@@ -394,7 +394,17 @@ final class AppModel: ObservableObject {
         alert = AppAlert(message: "A test alarm will ring in about 30 seconds. Lock your phone to see it full screen.")
     }
 
-    // MARK: - Stats (minimal for phase 1)
+    // MARK: - Stats
+
+    func stats(days: Int, now: Date = Date()) -> StatsSummary {
+        StatsBuilder.build(
+            events: EventLog.all(),
+            activeSession: session,
+            dayCount: days,
+            goalMinutes: store.dailyGoalMinutes,
+            now: now
+        )
+    }
 
     func focusedToday(now: Date = Date()) -> TimeInterval {
         let startOfDay = Calendar.current.startOfDay(for: now)

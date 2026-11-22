@@ -15,6 +15,7 @@ final class SharedStore {
         static let lastCheckIn = "lastCheckIn"
         static let lastNightLockEndedAt = "lastNightLockEndedAt"
         static let extraAlarms = "extraAlarms"
+        static let dailyGoalMinutes = "dailyGoalMinutes"
     }
 
     private let defaults: UserDefaults
@@ -76,6 +77,12 @@ final class SharedStore {
     var extraAlarms: [PlannedAlarm] {
         get { load(Key.extraAlarms) ?? [] }
         set { save(newValue, Key.extraAlarms) }
+    }
+
+    /// Daily focus goal used for streaks.
+    var dailyGoalMinutes: Int {
+        get { (defaults.object(forKey: Key.dailyGoalMinutes) as? Int) ?? 120 }
+        set { defaults.set(newValue, forKey: Key.dailyGoalMinutes) }
     }
 
     private func load<T: Decodable>(_ key: String) -> T? {

@@ -57,6 +57,7 @@ targets:
       - target: ShieldConfiguration
       - target: ShieldAction
       - target: DeviceActivityMonitor
+      - target: ActivityReport
 
   ShieldConfiguration:
     type: app-extension
@@ -122,6 +123,28 @@ targets:
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).DeviceActivityMonitorExtension
     entitlements:
       path: Extensions/DeviceActivityMonitor/DeviceActivityMonitor.entitlements
+      properties:
+        com.apple.developer.family-controls: true
+        com.apple.security.application-groups:
+          - group.uk.tawfeeq
+
+  ActivityReport:
+    type: extensionkit-extension
+    platform: iOS
+    sources:
+      - path: Extensions/ActivityReport
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: uk.tawfeeq.app.ActivityReport
+    info:
+      path: Extensions/ActivityReport/Info.plist
+      properties:
+        CFBundleDisplayName: Tawfeeq Report
+        EXAppExtensionAttributes:
+          EXExtensionPointIdentifier: com.apple.deviceactivityui.report-extension
+    entitlements:
+      path: Extensions/ActivityReport/ActivityReport.entitlements
       properties:
         com.apple.developer.family-controls: true
         com.apple.security.application-groups:
