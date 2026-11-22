@@ -93,6 +93,8 @@ final class AppModel: ObservableObject {
         passSummary = PassManager.summary(for: now)
         pendingWake = WakeAlarms.pendingWake(now: now)
 
+        LiveActivityController.sync(session: session, passExpiresAt: passExpiresAt, now: now)
+
         guard isAuthorized else { return }
         let shouldShield = isFocusing && !isOnPass(now: now)
         if shouldShield, !blocker.isShielding {
@@ -209,6 +211,7 @@ final class AppModel: ObservableObject {
         let newSession = FocusSession(id: UUID(), startedAt: Date(), source: source, startTagID: tag?.id)
         session = newSession
         store.activeSession = newSession
+        LiveActivityController.sync(session: newSession, passExpiresAt: nil)
         EventLog.append(.sessionStarted, info: [
             "sessionID": newSession.id.uuidString,
             "source": source.rawValue,
@@ -228,6 +231,7 @@ final class AppModel: ObservableObject {
         if blocker.isShielding { blocker.clear() } // one retry for the stuck-shield bug
         session = nil
         store.activeSession = nil
+        LiveActivityController.sync(session: nil, passExpiresAt: nil)
         EventLog.append(.sessionEnded, info: [
             "sessionID": current.id.uuidString,
             "endedBy": "tag",

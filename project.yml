@@ -40,6 +40,7 @@ targets:
         NFCReaderUsageDescription: Tawfeeq reads your desk tag to start and end focus sessions.
         NSAlarmKitUsageDescription: Tawfeeq rings your wake alarm, which you turn off by tapping your desk tag.
         UIRequiresFullScreen: true
+        NSSupportsLiveActivities: true
         # Only needed so ISO 7816 cards don't break the scan sheet; we only use NTAG (MIFARE Ultralight family).
         com.apple.developer.nfc.readersession.iso7816.select-identifiers:
           - D2760000850101
@@ -58,6 +59,7 @@ targets:
       - target: ShieldAction
       - target: DeviceActivityMonitor
       - target: ActivityReport
+      - target: Widgets
 
   ShieldConfiguration:
     type: app-extension
@@ -147,5 +149,26 @@ targets:
       path: Extensions/ActivityReport/ActivityReport.entitlements
       properties:
         com.apple.developer.family-controls: true
+        com.apple.security.application-groups:
+          - group.uk.tawfeeq
+
+  Widgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Extensions/Widgets
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: uk.tawfeeq.app.Widgets
+    info:
+      path: Extensions/Widgets/Info.plist
+      properties:
+        CFBundleDisplayName: Tawfeeq Widgets
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Extensions/Widgets/Widgets.entitlements
+      properties:
         com.apple.security.application-groups:
           - group.uk.tawfeeq
