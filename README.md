@@ -2,12 +2,13 @@
 
 An iPhone focus blocker that works like Brick. Tap the NFC sticker on your desk to start a focus session that blocks your distracting apps. Tap it again to end the session.
 
-- **Phases 1–2 (code written, not yet built on a Mac):**
+- **Phases 1–3 (compiles on GitHub's macOS runner; not yet tested on a phone):**
   - Screen Time blocking, tag enrollment, tap to toggle
   - custom block screen, self-healing shields
   - 5-minute passes, with a button on the block screen
   - Shortcuts NFC trigger
-- **Next:** night lock with tag-to-dismiss alarms, stats page, accountability partner
+  - night lock, plus a wake alarm that only stops with the desk tag
+- **Next:** stats page, accountability partner, UI polish
 
 | Doc | |
 |---|---|

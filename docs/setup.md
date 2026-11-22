@@ -1,4 +1,4 @@
-# Setting up and running Tawfeeq (phases 1–2)
+# Setting up and running Tawfeeq (phases 1–3)
 
 What's included:
 - **Phase 1**:
@@ -11,6 +11,11 @@ What's included:
   - **5-minute passes**, from the block screen or the app; apps re-block automatically
   - a pass counter with back-to-back warnings
   - a Shortcuts NFC automation, so tapping the desk sticker starts a session
+- **Phase 3**:
+  - **night lock**: apps lock automatically at bedtime and stay locked until you tap the desk tag
+  - **wake alarm**: rings through Silent mode and only fully stops when you tap the desk tag (the morning check-in)
+
+Every push is compiled automatically on a GitHub-hosted Mac (`.github/workflows/ios-build.yml`). A green tick on the branch means the code builds.
 
 ## You need
 
@@ -76,7 +81,16 @@ Run `xcodegen generate` again whenever `project.yml` changes or files are added.
 - [ ] End the session with the desk tag while a pass is running. Everything unblocks and stays unblocked.
 - [ ] Take a pass and leave Tawfeeq closed for 10+ minutes. Apps are blocked again. If they aren't, opening Tawfeeq fixes it; please tell me, because that means the background re-block didn't fire.
 
-### Tap the sticker to start (Shortcuts automation)
+### Phase 3 test checklist
+
+- [ ] **Routine → Test alarm.** Lock the phone. The alarm rings and shows **Scan desk tag**.
+- [ ] Set the wake alarm for 2–3 minutes from now and save. When it rings, press **Stop**. It rings again about 30 s later, and backup alarms keep coming every minute.
+- [ ] Press **Scan desk tag** on the alarm, or open Tawfeeq, and scan the desk tag. Everything goes quiet and nothing rings again that morning.
+- [ ] Night lock: set it to start in 20 minutes, with the wake time an hour later. At the start time, apps lock. The Focus tab shows "night lock".
+- [ ] After the wake time passes, apps are **still** locked until you scan the desk tag.
+- [ ] Scanning the desk tag in the morning checks in and ends the night lock in one tap.
+
+
 
 1. Open **Shortcuts** → **Automation** → **+** → **NFC**.
 2. Tap **Scan**, hold the phone on your desk sticker, and name it "Desk".

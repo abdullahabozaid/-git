@@ -167,4 +167,4 @@ I write the Swift code in this repo. You build and run it from Xcode on your Mac
 
 ## 6. Status
 
-- **Phases 1–2** (core, passes, Shortcuts trigger) are written but **not yet compiled or tested**: this was written in a Linux container with no Xcode. See [setup.md](setup.md) for how to build and the test checklist.
+- **Phases 1–3** (core, passes, Shortcuts trigger, night lock, wake alarm) **compile** on GitHub Actions (macOS runner, Xcode 26.6). They are **not yet tested on a device**. See [setup.md](setup.md) for how to build and the test checklist.
