@@ -11,7 +11,7 @@ struct RootView: View {
                 TabView {
                     Tab("Focus", systemImage: "circle.circle.fill") { FocusView() }
                     Tab("Rules", systemImage: "slider.horizontal.3") { RulesView() }
-                    Tab("Insights", systemImage: "chart.bar.fill") { StatsView() }
+                    Tab("Insights", systemImage: "chart.bar.fill") { InsightsView() }
                     Tab("Settings", systemImage: "gearshape.fill") { SettingsView() }
                 }
                 .tabViewBottomAccessory { MiniPlayer() }

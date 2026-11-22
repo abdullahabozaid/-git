@@ -12,6 +12,9 @@ struct DayStats: Identifiable, Equatable {
     var checkIn: Date?
     var minutesFromAlarm: Int?
     var nightLocked = false
+    var endedWithoutTag = 0
+    /// Streak kept alive by a grace day (one allowed per 7 days).
+    var isGraceDay = false
 
     var id: Date { day }
     var focusMinutes: Double { focusSeconds / 60 }
@@ -23,6 +26,9 @@ struct StatsSummary: Equatable {
     var bestStreak: Int
     var goalMinutes: Int
     var longestSession: TimeInterval
+    var intentions: [String: Int] = [:]
+    /// Passes by hour of day (0–23), for the gentle suggestion.
+    var passHours: [Int: Int] = [:]
     var totalFocus: TimeInterval { days.reduce(0) { $0 + $1.focusSeconds } }
     var totalPasses: Int { days.reduce(0) { $0 + $1.passes } }
     var checkIns: Int { days.filter { $0.checkIn != nil }.count }
@@ -52,6 +58,8 @@ enum StatsBuilder {
         }
 
         var longest: TimeInterval = 0
+        var intentions: [String: Int] = [:]
+        var passHours: [Int: Int] = [:]
 
         func addFocus(from start: Date, to end: Date) {
             guard end > start else { return }
@@ -72,6 +80,7 @@ enum StatsBuilder {
             switch event.kind {
             case .sessionEnded:
                 let isNight = event.info["source"] == SessionSource.nightLock.rawValue
+                if event.info["endedBy"] == "breakGlass" { days[day]?.endedWithoutTag += 1 }
                 if isNight {
                     days[day]?.nightLocked = true
                 } else if let seconds = event.info["durationSeconds"].flatMap(TimeInterval.init) {
@@ -81,6 +90,9 @@ enum StatsBuilder {
             case .passStarted:
                 days[day]?.passes += 1
                 if event.info["backToBack"] == "true" { days[day]?.backToBackPasses += 1 }
+                let intention = event.info["intention"].flatMap { $0.isEmpty ? nil : $0 } ?? "unspecified"
+                intentions[intention, default: 0] += 1
+                passHours[calendar.component(.hour, from: event.date), default: 0] += 1
             case .morningCheckIn:
                 days[day]?.checkIn = event.date
                 days[day]?.minutesFromAlarm = event.info["minutesFromAlarm"].flatMap(Int.init)
@@ -98,25 +110,40 @@ enum StatsBuilder {
             }
         }
 
-        let ordered = days.values.sorted { $0.day < $1.day }
+        var ordered = days.values.sorted { $0.day < $1.day }
         let goal = TimeInterval(goalMinutes * 60)
         let met = ordered.map { $0.focusSeconds >= goal && goal > 0 }
 
-        var best = 0, run = 0
-        for hit in met {
-            run = hit ? run + 1 : 0
-            best = max(best, run)
-        }
-        // Current streak: count back from today; if today isn't met yet, start from yesterday.
-        var current = 0
-        var index = met.count - 1
-        if index >= 0, !met[index] { index -= 1 }
-        while index >= 0, met[index] {
-            current += 1
+        // Today doesn't break a streak until it's over.
+        let lastIndex = met.count - 1
+        let current = streak(endingAt: (lastIndex >= 0 && !met[lastIndex]) ? lastIndex - 1 : lastIndex, met: met)
+        var best = current.length
+        for end in met.indices { best = max(best, streak(endingAt: end, met: met).length) }
+        for index in current.graceIndices { ordered[index].isGraceDay = true }
+
+        return StatsSummary(days: ordered, currentStreak: current.length, bestStreak: best,
+                            goalMinutes: goalMinutes, longestSession: longest,
+                            intentions: intentions, passHours: passHours)
+    }
+
+    /// Consecutive goal days ending at `end`, forgiving one missed day per 7 days
+    /// (never two misses in a row, and a streak can't start or end on a grace day).
+    static func streak(endingAt end: Int, met: [Bool]) -> (length: Int, graceIndices: [Int]) {
+        guard end >= 0, end < met.count, met[end] else { return (0, []) }
+        var length = 0
+        var graces: [Int] = []
+        var index = end
+        while index >= 0 {
+            if met[index] {
+                length += 1
+            } else {
+                let previousMet = index > 0 && met[index - 1]
+                let lastGrace = graces.last ?? Int.max
+                guard previousMet, lastGrace - index >= 7 else { break }
+                graces.append(index)
+            }
             index -= 1
         }
-
-        return StatsSummary(days: ordered, currentStreak: current, bestStreak: best,
-                            goalMinutes: goalMinutes, longestSession: longest)
+        return (length, graces)
     }
 }
